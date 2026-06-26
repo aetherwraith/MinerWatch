@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS miners (
     guardian_temp_source    TEXT,               -- vr (default) or chip — which sensor governs frequency
     guardian_max_temp_c     REAL,               -- per-miner max temp / high threshold (NULL → source default)
     guardian_voltage_enabled INTEGER DEFAULT 0, -- 0/1 per-miner opt-in for the voltage co-tuner (Phase 2)
+    guardian_max_power_w    REAL,               -- per-miner max power override (NULL → global default / telemetry)
     -- Offline-alert mute. When 1, the offline/disconnect alert is suppressed
     -- for this miner (no notification, no DB row). Set from the dashboard when
     -- a miner is powered down on purpose, and auto-cleared the next time the
@@ -464,6 +465,8 @@ def _init_db_sync() -> None:
             "ALTER TABLE block_finds ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
             # Hardware error percentage column in metrics table.
             "ALTER TABLE metrics ADD COLUMN error_pct REAL",
+            # Per-miner Guardian max power limit override.
+            "ALTER TABLE miners ADD COLUMN guardian_max_power_w REAL",
         ]:
             try:
                 conn.execute(column_def)
@@ -2205,6 +2208,7 @@ async def set_guardian_config(
     temp_source: str | None = None,
     max_temp_c: float | None = None,
     voltage_enabled: bool | None = None,
+    max_power_w: float | None = None,
 ) -> None:
     """Update the Guardian settings for a miner.
 
@@ -2213,10 +2217,6 @@ async def set_guardian_config(
     ``temp_source`` is "vr" | "chip" (which sensor governs frequency) and
     ``max_temp_c`` is the per-miner high threshold (the recovery point is
     derived from it at decision time).
-
-    Note: COALESCE means a value can't be reset back to NULL here (mirrors
-    set_fan_config). That's intentional — clearing the ceiling/floor isn't a
-    supported operation; the caller sets a concrete value or leaves it.
     """
     enabled_int = None if enabled is None else (1 if enabled else 0)
     source = None if temp_source is None else str(temp_source).lower()
@@ -2231,6 +2231,7 @@ async def set_guardian_config(
               guardian_temp_source = COALESCE(?, guardian_temp_source),
               guardian_max_temp_c = COALESCE(?, guardian_max_temp_c),
               guardian_voltage_enabled = COALESCE(?, guardian_voltage_enabled),
+              guardian_max_power_w = COALESCE(?, guardian_max_power_w),
               updated_at = ?
             WHERE id = ?
             """,
@@ -2241,6 +2242,7 @@ async def set_guardian_config(
                 source,
                 max_temp_c,
                 voltage_int,
+                max_power_w,
                 now_ts(),
                 miner_id,
             ),

@@ -31,6 +31,7 @@ export interface MinerRecord {
   guardian_freq_floor_mhz: number | null;    // optional floor override
   guardian_temp_source: string | null;       // 'vr' (default) | 'chip'
   guardian_max_temp_c: number | null;         // per-miner max temp (high threshold)
+  guardian_max_power_w: number | null;        // per-miner max power override
   last_status: string | null;
   // Offline-alert mute (0 | 1). When 1, disconnect alerts are silenced for
   // this miner until it reconnects — see the dashboard banner Mute button.
@@ -687,6 +688,7 @@ export interface GuardianDefaults {
   v_ceiling_mv: number;
   v_floor_mv: number;
   v_step_mv: number;
+  power_cutoff_w: number;
 }
 
 export interface GuardianStatusResponse {
@@ -697,6 +699,7 @@ export interface GuardianStatusResponse {
   freq_floor_mhz: number | null;
   temp_source: 'vr' | 'chip';   // which sensor governs frequency
   max_temp_c: number | null;    // per-miner high threshold (null → source default)
+  max_power_w: number | null;   // per-miner max power override
   voltage_enabled: boolean;     // per-miner opt-in for the voltage co-tuner (Phase 2)
   supports_voltage: boolean;    // family exposes voltage control
   voltage_master: boolean;      // global master switch for the voltage lever

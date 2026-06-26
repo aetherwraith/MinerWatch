@@ -465,6 +465,100 @@ def test_govern_one_uses_recent_averages():
     asyncio.run(run())
 
 
+def test_govern_one_resolves_power_limit_override():
+    import asyncio
+    from unittest.mock import AsyncMock, Mock, patch
+    from backend.miners.base import MinerSample
+    from backend.guardian import guardian, _GuardianState
+
+    miner = {
+        "id": 1,
+        "name": "miner1",
+        "family": "bitaxe",
+        "guardian_temp_source": "vr",
+        "guardian_max_power_w": 120.0,
+        "guardian_voltage_enabled": True,
+    }
+    sample = MinerSample(
+        family="bitaxe",
+        host="10.0.0.1",
+        online=True,
+        frequency_mhz=550,
+        temp_chip_c=60.0,
+        temp_vr_c=68.0,
+        hashrate_ths=2.5,
+        power_w=20.0,
+        accepted=100,
+        rejected=0,
+    )
+    sample.voltage_mv = 1200
+    sample.max_power_w = 40.0
+    sample.input_voltage_mv = 5100.0
+
+    gcfg = Mock()
+    gcfg.hashrate_average_window_seconds = 0
+    gcfg.reject_min_shares = 10
+    gcfg.reject_pct_max = 5.0
+    gcfg.frequency_floor_mhz = 400
+    gcfg.step_down_vr_mhz = 20
+    gcfg.step_down_err_mhz = 10
+    gcfg.step_up_mhz = 10
+    gcfg.temp_band = Mock(return_value=(70.0, 67.0))
+    gcfg.hashrate_settle_seconds = 0
+    gcfg.valid_pct = 0.97
+    gcfg.error_pct_max = 5.0
+    gcfg.v2_voltage_enabled = True
+    gcfg.cooldown_seconds = 0
+    gcfg.power_cutoff_w = 45.0
+    gcfg.v2_voltage_ceiling_mv = 1200
+    gcfg.v2_voltage_floor_mv = 1100
+    gcfg.vin_min_mv = 4800.0
+    gcfg.vin_max_mv = 5500.0
+    gcfg.chip_cutoff_c = 75.0
+    gcfg.vr_cutoff_c = 95.0
+    gcfg.v2_voltage_step_mv = 10
+
+    cfg = Mock()
+
+    async def run():
+        mock_drv = AsyncMock()
+        mock_drv.can_set_voltage = True
+        mock_drv.can_set_frequency = True
+        mock_drv.set_voltage.return_value = True
+        mock_drv.set_frequency.return_value = True
+
+        with patch("backend.guardian.driver_for_record", Mock(return_value=mock_drv)) as mock_dfr, \
+             patch.object(guardian, "_publish") as mock_publish, \
+             patch("backend.guardian.decide_point") as mock_decide_point:
+
+            mock_decide_point.return_value = (550, 1200, "hold")
+
+            state = _GuardianState()
+            state.last_commanded_freq = 550
+            guardian._states[1] = state
+
+            # Test 1: db override is used
+            await guardian._govern_one(miner, sample, gcfg, cfg)
+            mock_decide_point.assert_called_once()
+            assert mock_decide_point.call_args.kwargs["power_cutoff_w"] == 120.0
+
+            # Test 2: fallback to sample max_power_w when db override is None
+            mock_decide_point.reset_mock()
+            miner["guardian_max_power_w"] = None
+            await guardian._govern_one(miner, sample, gcfg, cfg)
+            mock_decide_point.assert_called_once()
+            assert mock_decide_point.call_args.kwargs["power_cutoff_w"] == 40.0
+
+            # Test 3: fallback to global config power_cutoff_w when sample max_power_w is also None/0
+            mock_decide_point.reset_mock()
+            sample.max_power_w = 0.0
+            await guardian._govern_one(miner, sample, gcfg, cfg)
+            mock_decide_point.assert_called_once()
+            assert mock_decide_point.call_args.kwargs["power_cutoff_w"] == 45.0
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failures = 0

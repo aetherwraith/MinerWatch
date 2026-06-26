@@ -685,8 +685,11 @@ class GuardianController:
             )
             drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
             if drv.can_set_voltage and drv.can_set_frequency:
-                power_cut = float(sample.max_power_w) if sample.max_power_w else (
-                    float(getattr(gcfg, "power_cutoff_w", 0) or 0) or None
+                db_power_limit = miner.get("guardian_max_power_w")
+                power_cut = float(db_power_limit) if db_power_limit is not None else (
+                    float(sample.max_power_w) if sample.max_power_w else (
+                        float(getattr(gcfg, "power_cutoff_w", 0) or 0) or None
+                    )
                 )
                 # 12 V boards need the 5 V-shaped Vin window rescaled —
                 # see vin_band().

@@ -1769,6 +1769,8 @@ class GuardianConfigPayload(BaseModel):
     # v2_voltage_enabled master switch + the family supporting voltage control;
     # the UI puts a confirmation in front of it.
     voltage_enabled: Optional[bool] = None
+    # Per-miner max power limit override.
+    max_power_w: Optional[float] = Field(default=None, ge=10, le=500)
 
 
 def _miner_current_freq(miner_id: int) -> int | None:
@@ -1812,6 +1814,7 @@ async def api_guardian_status(miner_id: int) -> dict:
         "temp_source": (miner.get("guardian_temp_source") or "vr"),
         "max_temp_c": miner.get("guardian_max_temp_c"),
         "voltage_enabled": bool(miner.get("guardian_voltage_enabled")),
+        "max_power_w": miner.get("guardian_max_power_w"),
         "supports_voltage": bool(caps.get("set_voltage")),
         "voltage_master": g.v2_voltage_enabled,
         "current_freq_mhz": current,
@@ -1832,6 +1835,7 @@ async def api_guardian_status(miner_id: int) -> dict:
             "v_ceiling_mv": g.v2_voltage_ceiling_mv,
             "v_floor_mv": g.v2_voltage_floor_mv,
             "v_step_mv": g.v2_voltage_step_mv,
+            "power_cutoff_w": g.power_cutoff_w,
         },
         "live": guardian.status(miner_id),
     }
@@ -1915,6 +1919,7 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
         temp_source=source,
         max_temp_c=payload.max_temp_c,
         voltage_enabled=payload.voltage_enabled,
+        max_power_w=payload.max_power_w,
     )
     # Any settings change re-probes from scratch: drop the in-memory state so a
     # stale soft ceiling (or reject/settle state) doesn't linger. Fixes "disable

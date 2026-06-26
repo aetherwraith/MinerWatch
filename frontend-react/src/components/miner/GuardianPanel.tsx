@@ -48,6 +48,7 @@ export function GuardianPanel({ data }: Props) {
   // Temperature source ('vr' | 'chip') and the per-miner max temperature.
   const [source, setSource] = useState<'vr' | 'chip'>('vr');
   const [maxTemp, setMaxTemp] = useState<number | ''>('');
+  const [maxPower, setMaxPower] = useState<number | ''>('');
   // At-your-own-risk confirmation, gating the enable toggle.
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Separate (stronger) confirmation for the Phase 2 voltage co-tuner opt-in.
@@ -65,11 +66,13 @@ export function GuardianPanel({ data }: Props) {
         ? s.defaults.chip_high_c
         : s.defaults.vr_high_c;
     setMaxTemp(s.max_temp_c ?? defHigh ?? '');
+    setMaxPower(s.max_power_w ?? '');
   }, [
     s?.max_freq_mhz,
     s?.current_freq_mhz,
     s?.temp_source,
     s?.max_temp_c,
+    s?.max_power_w,
   ]);
 
   if (!capabilities.set_frequency) {
@@ -140,6 +143,7 @@ export function GuardianPanel({ data }: Props) {
       temp_source?: 'vr' | 'chip';
       max_temp_c?: number;
       voltage_enabled?: boolean;
+      max_power_w?: number;
     },
     ok: string,
   ) {
@@ -340,7 +344,43 @@ export function GuardianPanel({ data }: Props) {
             that. Default for {srcLabel}: {defHighFor(source)}°C.
             {source === 'chip'
               ? ' Keep it below the 75°C overheat watchdog.'
-              : ''}
+               : ''}
+          </p>
+        </div>
+
+        {/* Max power (per-miner override) */}
+        <div className="space-y-2 border-t border-border pt-4">
+          <Label htmlFor="guardian-maxpower" className="text-sm">
+            Max power limit (W)
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="guardian-maxpower"
+              type="number"
+              min={10}
+              max={500}
+              step={1}
+              value={maxPower}
+              onChange={(e) =>
+                setMaxPower(e.target.value === '' ? '' : Number(e.target.value))
+              }
+              disabled={pending}
+              className="max-w-[100px]"
+            />
+            <Button
+              variant="subtle"
+              disabled={pending || maxPower === ''}
+              onClick={() =>
+                typeof maxPower === 'number' &&
+                run({ max_power_w: maxPower }, `Max power limit set to ${maxPower} W`)
+              }
+            >
+              Save power
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Per-miner override for the safety cutoff power limit. Gathers from the miner's
+            hardware defaults, and falls back to the global limit ({d.power_cutoff_w ?? 40} W) if unset.
           </p>
         </div>
 
