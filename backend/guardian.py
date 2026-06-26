@@ -71,10 +71,11 @@ from .miners.base import MinerSample
 log = logging.getLogger("minerwatch.guardian")
 
 # Families this governor knows how to drive. All speak the AxeOS REST API
-# and expose ``vrTemp``; the VR temperature is the primary control signal.
+# and expose ``vrTemp`` (or ``vcore`` temp mapping for nmaxe); the VR temperature
+# is the primary control signal.
 # bitforge (forge-os) lacks ``expectedHashrate``, so its validity test
 # relies on the smallCoreCount × asicCount fallback.
-GUARDIAN_FAMILIES = ("bitaxe", "nerdoctaxe", "bitforge")
+GUARDIAN_FAMILIES = ("bitaxe", "nerdoctaxe", "bitforge", "nmaxe")
 
 
 # ============================================================================
