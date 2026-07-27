@@ -58,51 +58,17 @@ from .miners import DRIVERS, driver_for_record
 from .poller import poller
 from .wallet_watch import wallet_watcher
 
+from contextlib import asynccontextmanager
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 log = logging.getLogger("minerwatch")
 
-app = FastAPI(title="MinerWatch", version=updater.read_version())
 
-# CORS — accept any origin that lives on the local network (mDNS
-# `*.local`, RFC1918 IPv4 ranges, IPv6 link-local/ULA, plus
-# localhost/127.0.0.1). We still refuse public origins, so a malicious
-# site on the open web can't trick the browser into reading
-# MinerWatch's responses just because the user is logged in.
-#
-# We use `allow_origin_regex` rather than enumerating every possible
-# host because MinerWatch is reached from a mix of mDNS hostnames
-# (denver.local), raw LAN IPs (192.168.x.y, 10.x, 172.16-31.x), and on
-# iOS Bonjour resolution sometimes silently falls back to the IP. With
-# a fixed allow-list every device fails on a different morning.
-PRIVATE_ORIGIN_REGEX = (
-    r"^https?://("
-    r"localhost"
-    r"|127\.0\.0\.1"
-    r"|\[::1\]"
-    r"|[a-zA-Z0-9-]+\.local"
-    r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-    r"|192\.168\.\d{1,3}\.\d{1,3}"
-    r"|172\.(1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}"
-    r"|\[fe80::[0-9a-fA-F:]+(%[0-9a-zA-Z]+)?\]"
-    r"|\[fd[0-9a-fA-F]{2}:[0-9a-fA-F:]*\]"
-    r")(:\d+)?$"
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origin_regex=PRIVATE_ORIGIN_REGEX,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ---------- Lifecycle ----------
-
-@app.on_event("startup")
-async def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     from .log_buffer import ring_buffer_handler
     logging.getLogger().addHandler(ring_buffer_handler)
     cfg = get_config()
@@ -135,10 +101,7 @@ async def on_startup() -> None:
     ensure_vapid_keys()
 
     # Fail-closed sanity check: if auth.enabled is True but the password
-    # is empty, every protected request will 401. We don't crash the
-    # process (that would create a boot loop and lock the user out
-    # without a fix path), but we surface a loud warning in the log so
-    # the misconfiguration isn't silent.
+    # is empty, every protected request will 401.
     if cfg.auth.enabled and not (cfg.auth.password or "").strip():
         log.warning(
             "auth.enabled=True but auth.password is empty — all protected "
@@ -149,31 +112,48 @@ async def on_startup() -> None:
     log.info("Starting MinerWatch — port %s", cfg.server.port)
     await poller.start()
     await auto_fan.start()
-    # Runtime frequency governor (Guardian). Slow outer loop; per-miner
-    # opt-in. See backend/guardian.py and docs/guardian-design.md.
+    # Runtime frequency governor (Guardian).
     await guardian.start()
-    # Live per-share streamer for AxeOS miners. Self-disables if the
-    # `websockets` lib is missing; only attaches to bitaxe-family miners.
+    # Live per-share streamer for AxeOS miners.
     await log_streamer.start()
-    # Donate-hashrate: first revert anything whose window elapsed while we
-    # were down (boot catch-up = crash safety net), then start the loop
-    # that auto-reverts on expiry. See backend/donations.py.
+    # Donate-hashrate catchup & start loop
     await donation_controller.catch_up_on_boot()
     await donation_controller.start()
-    # Watched Bitcoin addresses: notifies on new confirmed incoming
-    # transactions via mempool.space. No-op while the address list in
-    # Settings → Alerts is empty. See backend/wallet_watch.py.
+    # Watched Bitcoin addresses
     await wallet_watcher.start()
 
+    yield
 
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
     await wallet_watcher.stop()
     await donation_controller.stop()
     await log_streamer.stop()
     await guardian.stop()
     await auto_fan.stop()
     await poller.stop()
+
+
+app = FastAPI(title="MinerWatch", version=updater.read_version(), lifespan=lifespan)
+
+PRIVATE_ORIGIN_REGEX = (
+    r"^https?://("
+    r"localhost"
+    r"|127\.0\.0\.1"
+    r"|\[::1\]"
+    r"|[a-zA-Z0-9-]+\.local"
+    r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|192\.168\.\d{1,3}\.\d{1,3}"
+    r"|172\.(1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}"
+    r"|\[fe80::[0-9a-fA-F:]+(%[0-9a-zA-Z]+)?\]"
+    r"|\[fd[0-9a-fA-F]{2}:[0-9a-fA-F:]*\]"
+    r")(:\d+)?$"
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=PRIVATE_ORIGIN_REGEX,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------- Auth middleware ----------
