@@ -15,7 +15,7 @@ import sys
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.auto_control import (  # noqa: E402
+from backend.auto_control import (
     WATCHDOG_OVERHEAT_C,
     WATCHDOG_RELEASE_C,
     WATCHDOG_RELEASE_MARGIN_C,

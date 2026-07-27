@@ -24,7 +24,7 @@ import sys
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import updater  # noqa: E402
+from backend import updater
 
 ENV = "MINERWATCH_CONTAINER"
 

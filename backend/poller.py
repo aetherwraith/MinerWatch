@@ -17,12 +17,12 @@ import logging
 import math
 import time
 
+from . import alerts, db
+from .ambient_temp import ambient
 from .config import get_config
-from . import db, alerts
 from .log_streamer import log_streamer
 from .miners import driver_for_record
 from .miners.base import MinerSample
-from .ambient_temp import ambient
 
 log = logging.getLogger("minerwatch.poller")
 
@@ -178,7 +178,7 @@ class Poller:
                     await db.insert_ambient_metric(
                         amb.sensor_id, ts, round(float(amb.current_c), 1)
                     )
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.debug("ambient persist skipped", exc_info=True)
 
         self._last_results = out
@@ -197,7 +197,7 @@ class Poller:
                 # survive process restarts.
                 await self._rollup_if_due()
                 await self._cleanup_if_due()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("poller cycle error")
 
             elapsed = time.monotonic() - cycle_start

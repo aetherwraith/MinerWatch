@@ -15,6 +15,7 @@ import {
   Server,
   Settings as SettingsIcon,
   Sun,
+  Terminal,
   X,
 } from 'lucide-react';
 
@@ -104,6 +105,13 @@ function NavList({ onNavigate, updateAvailable, systemSupported }: NavListProps)
       label: 'Pools',
       icon: Network,
       description: 'Stratum endpoints & shares',
+    },
+    {
+      kind: 'link',
+      to: '/logs',
+      label: 'Logs',
+      icon: Terminal,
+      description: 'System & governor logs',
     },
     {
       kind: 'link',

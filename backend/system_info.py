@@ -65,9 +65,8 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 log = logging.getLogger("minerwatch.system")
 
@@ -92,22 +91,22 @@ class HostInfo:
     # real hardware signal qualifies, while is_raspberry stays reserved
     # for the Pi-only readings (core voltage, throttling).
     supported: bool = False
-    model: Optional[str] = None
-    kernel: Optional[str] = None
-    ram_total_bytes: Optional[int] = None
-    cpu_count: Optional[int] = None
+    model: str | None = None
+    kernel: str | None = None
+    ram_total_bytes: int | None = None
+    cpu_count: int | None = None
     has_vcgencmd: bool = False
 
     # Fan support discovered in sysfs
-    fan_cooling_path: Optional[str] = None       # cooling_device with PWM/state control
-    fan_cooling_max_state: Optional[int] = None  # number of usable steps (e.g. 0..N)
-    fan_rpm_path: Optional[str] = None           # /sys/class/hwmon/.../fan1_input
+    fan_cooling_path: str | None = None       # cooling_device with PWM/state control
+    fan_cooling_max_state: int | None = None  # number of usable steps (e.g. 0..N)
+    fan_rpm_path: str | None = None           # /sys/class/hwmon/.../fan1_input
 
 
-_VCGENCMD: Optional[str] = None  # path to vcgencmd binary if found
+_VCGENCMD: str | None = None  # path to vcgencmd binary if found
 
 
-def _read_first_line(path: str) -> Optional[str]:
+def _read_first_line(path: str) -> str | None:
     """Read the first line of *path*, stripping NULs and trailing whitespace.
 
     /proc/device-tree files are NUL-terminated, which trips up naive str()
@@ -120,7 +119,7 @@ def _read_first_line(path: str) -> Optional[str]:
         return None
 
 
-def _read_file(path: str) -> Optional[str]:
+def _read_file(path: str) -> str | None:
     try:
         with open(path, "r", errors="replace") as f:
             return f.read().strip().strip("\x00")
@@ -128,7 +127,7 @@ def _read_file(path: str) -> Optional[str]:
         return None
 
 
-def _find_vcgencmd() -> Optional[str]:
+def _find_vcgencmd() -> str | None:
     """Locate vcgencmd, the Pi-specific firmware-query helper."""
     candidates = ["/usr/bin/vcgencmd", "/opt/vc/bin/vcgencmd"]
     for c in candidates:
@@ -138,15 +137,15 @@ def _find_vcgencmd() -> Optional[str]:
     return found
 
 
-def _discover_fan_paths() -> Tuple[Optional[str], Optional[int], Optional[str]]:
+def _discover_fan_paths() -> tuple[str | None, int | None, str | None]:
     """Look for a controllable fan + RPM tach in sysfs.
 
     Returns ``(cooling_device_path, max_state, hwmon_fan_input_path)``.
     All three can be None — the caller treats that as "no fan available".
     """
-    cooling_path: Optional[str] = None
-    max_state: Optional[int] = None
-    rpm_path: Optional[str] = None
+    cooling_path: str | None = None
+    max_state: int | None = None
+    rpm_path: str | None = None
 
     # 1) Look for a cooling_device that exposes a writable cur_state and
     #    whose type hints at a fan (gpio-fan, pwm-fan, …). On stock Pi
@@ -267,7 +266,7 @@ HOST: HostInfo = _detect_host()
 
 # ---------- vcgencmd helpers ----------
 
-def _vcgencmd(*args: str, timeout: float = 1.5) -> Optional[str]:
+def _vcgencmd(*args: str, timeout: float = 1.5) -> str | None:
     """Call ``vcgencmd ARGS`` and return stripped stdout, or None on any error.
 
     Pi-specific; returns None outside the Pi. Bounded timeout because
@@ -291,7 +290,7 @@ def _vcgencmd(*args: str, timeout: float = 1.5) -> Optional[str]:
     return out.stdout.strip() or None
 
 
-def _parse_throttled(value: Optional[str]) -> Dict[str, object]:
+def _parse_throttled(value: str | None) -> dict[str, object]:
     """Parse ``vcgencmd get_throttled`` output into structured flags.
 
     Output format is ``throttled=0xNNNN``. Bit layout (from the
@@ -337,7 +336,7 @@ def _parse_throttled(value: Optional[str]) -> Dict[str, object]:
     }
 
 
-def _parse_volts(value: Optional[str]) -> Optional[float]:
+def _parse_volts(value: str | None) -> float | None:
     """``vcgencmd measure_volts core`` → ``volt=0.8500V`` → 0.85."""
     if not value:
         return None
@@ -348,7 +347,7 @@ def _parse_volts(value: Optional[str]) -> Optional[float]:
         return None
 
 
-def _parse_freq(value: Optional[str]) -> Optional[int]:
+def _parse_freq(value: str | None) -> int | None:
     """``vcgencmd measure_clock arm`` → ``frequency(48)=1500000000`` → 1500 (MHz)."""
     if not value:
         return None
@@ -359,7 +358,7 @@ def _parse_freq(value: Optional[str]) -> Optional[int]:
         return None
 
 
-def _parse_temp(value: Optional[str]) -> Optional[float]:
+def _parse_temp(value: str | None) -> float | None:
     """``vcgencmd measure_temp`` → ``temp=44.4'C`` → 44.4."""
     if not value:
         return None
@@ -372,7 +371,7 @@ def _parse_temp(value: Optional[str]) -> Optional[float]:
 
 # ---------- Linux /sys & /proc readers ----------
 
-def _read_cpu_temp_sysfs() -> Optional[float]:
+def _read_cpu_temp_sysfs() -> float | None:
     """Return CPU temp in °C from /sys/class/thermal.
 
     Fallback for non-Pi Linux systems (where vcgencmd isn't around) and
@@ -395,7 +394,7 @@ def _read_cpu_temp_sysfs() -> Optional[float]:
     return None
 
 
-def _read_load_average() -> Optional[List[float]]:
+def _read_load_average() -> list[float] | None:
     """Return [1min, 5min, 15min] load. /proc on Linux, psutil on macOS."""
     line = _read_file("/proc/loadavg")
     if line:
@@ -413,7 +412,7 @@ def _read_load_average() -> Optional[List[float]]:
     return None
 
 
-def _read_uptime_seconds() -> Optional[int]:
+def _read_uptime_seconds() -> int | None:
     line = _read_file("/proc/uptime")
     if line:
         try:
@@ -428,7 +427,7 @@ def _read_uptime_seconds() -> Optional[int]:
     return None
 
 
-def _read_fan_rpm() -> Optional[int]:
+def _read_fan_rpm() -> int | None:
     if not HOST.fan_rpm_path:
         return None
     raw = _read_file(HOST.fan_rpm_path)
@@ -440,7 +439,7 @@ def _read_fan_rpm() -> Optional[int]:
         return None
 
 
-def _read_fan_state() -> Tuple[Optional[int], Optional[int]]:
+def _read_fan_state() -> tuple[int | None, int | None]:
     """Return ``(current_state, max_state)`` for the cooling device.
 
     For a gpio-fan overlay the state is essentially a binary off/on
@@ -474,14 +473,14 @@ class _IoState:
 _io_state: _IoState = _IoState()
 
 
-def _io_rates() -> Dict[str, Optional[float]]:
+def _io_rates() -> dict[str, float | None]:
     """Compute disk + net rates by diffing against the previous call.
 
     First call ever returns Nones (no previous sample → no rate). Caller
     is expected to poll on a steady cadence (the UI polls every 5 s), so
     the rate naturally averages over the inter-poll interval.
     """
-    out: Dict[str, Optional[float]] = {
+    out: dict[str, float | None] = {
         "disk_read_bps": None,
         "disk_write_bps": None,
         "net_rx_bps": None,
@@ -513,7 +512,7 @@ def _io_rates() -> Dict[str, Optional[float]]:
 
 # ---------- Public API ----------
 
-def host_info() -> Dict[str, object]:
+def host_info() -> dict[str, object]:
     """Static info — model, kernel, totals, what features are available."""
     return {
         "is_raspberry": HOST.is_raspberry,
@@ -533,21 +532,21 @@ def host_info() -> Dict[str, object]:
     }
 
 
-def snapshot(db_path: Optional[Path] = None) -> Dict[str, object]:
+def snapshot(db_path: Path | None = None) -> dict[str, object]:
     """One-shot reading of everything the System page needs.
 
     *db_path* is optional and only used to report the on-disk size of the
     MinerWatch SQLite database. Caller (main.py) passes the configured
     path so we don't hardcode it here.
     """
-    out: Dict[str, object] = {
+    out: dict[str, object] = {
         "ts": int(time.time()),
         "uptime_seconds": _read_uptime_seconds(),
         "load_average": _read_load_average(),
     }
 
     # CPU
-    cpu: Dict[str, object] = {"percent": None, "per_core": None,
+    cpu: dict[str, object] = {"percent": None, "per_core": None,
                               "freq_mhz": None, "freq_max_mhz": None}
     if _HAS_PSUTIL:
         try:
@@ -572,8 +571,8 @@ def snapshot(db_path: Optional[Path] = None) -> Dict[str, object]:
     out["cpu"] = cpu
 
     # Memory
-    mem: Dict[str, object] = {"used_bytes": None, "total_bytes": None, "percent": None}
-    swap: Dict[str, object] = {"used_bytes": None, "total_bytes": None, "percent": None}
+    mem: dict[str, object] = {"used_bytes": None, "total_bytes": None, "percent": None}
+    swap: dict[str, object] = {"used_bytes": None, "total_bytes": None, "percent": None}
     if _HAS_PSUTIL:
         try:
             v = psutil.virtual_memory()
@@ -589,7 +588,7 @@ def snapshot(db_path: Optional[Path] = None) -> Dict[str, object]:
     out["swap"] = swap
 
     # Disk (root filesystem)
-    disk: Dict[str, object] = {"used_bytes": None, "total_bytes": None,
+    disk: dict[str, object] = {"used_bytes": None, "total_bytes": None,
                                "free_bytes": None, "percent": None}
     try:
         usage = shutil.disk_usage("/")
@@ -619,7 +618,7 @@ def snapshot(db_path: Optional[Path] = None) -> Dict[str, object]:
 
     # Fan
     fan_cur, fan_max = _read_fan_state()
-    fan_percent: Optional[int] = None
+    fan_percent: int | None = None
     if fan_cur is not None and fan_max:
         fan_percent = int(round(fan_cur / fan_max * 100))
     out["fan"] = {
@@ -631,7 +630,7 @@ def snapshot(db_path: Optional[Path] = None) -> Dict[str, object]:
     }
 
     # MinerWatch DB size (handy for retention tuning)
-    db_size: Optional[int] = None
+    db_size: int | None = None
     if db_path is not None:
         try:
             p = Path(db_path)
@@ -644,7 +643,7 @@ def snapshot(db_path: Optional[Path] = None) -> Dict[str, object]:
     return out
 
 
-def set_fan_percent(percent: int) -> Dict[str, object]:
+def set_fan_percent(percent: int) -> dict[str, object]:
     """Drive the cooling device to ``percent`` (0..100).
 
     Translates the percent into the nearest ``cur_state`` bucket and
@@ -686,9 +685,9 @@ def set_fan_percent(percent: int) -> Dict[str, object]:
 # thread so we never block the event loop — vcgencmd in particular can
 # stall for up to 1.5 s when the firmware mailbox is busy.
 
-async def snapshot_async(db_path: Optional[Path] = None) -> Dict[str, object]:
+async def snapshot_async(db_path: Path | None = None) -> dict[str, object]:
     return await asyncio.to_thread(snapshot, db_path)
 
 
-async def set_fan_percent_async(percent: int) -> Dict[str, object]:
+async def set_fan_percent_async(percent: int) -> dict[str, object]:
     return await asyncio.to_thread(set_fan_percent, percent)

@@ -21,11 +21,10 @@ import sys
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.miners.base import PoolConfig  # noqa: E402
-from backend.miners.bitaxe import BitaxeDriver, _split_host_port  # noqa: E402
-import backend.db as db  # noqa: E402
-import backend.donations as dons  # noqa: E402
-
+import backend.donations as dons
+from backend import db
+from backend.miners.base import PoolConfig
+from backend.miners.bitaxe import BitaxeDriver, _split_host_port
 
 # ---- pure helpers -----------------------------------------------------------
 

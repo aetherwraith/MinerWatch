@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Dict, Optional, Tuple
 
 import httpx
 
@@ -33,7 +32,7 @@ log = logging.getLogger("minerwatch.coin_difficulty")
 
 # Blockchair "stats" endpoints expose ``data.difficulty`` for each chain.
 # One source for both coins keeps the parsing uniform.
-_ENDPOINTS: Dict[str, str] = {
+_ENDPOINTS: dict[str, str] = {
     "btc": "https://api.blockchair.com/bitcoin/stats",
     "bch": "https://api.blockchair.com/bitcoin-cash/stats",
 }
@@ -41,15 +40,15 @@ _ENDPOINTS: Dict[str, str] = {
 _CACHE_TTL_SECONDS = 15 * 60
 
 # coin -> (difficulty, fetched_at_epoch)
-_cache: Dict[str, Tuple[float, float]] = {}
+_cache: dict[str, tuple[float, float]] = {}
 
 
-def supported_coins() -> Tuple[str, ...]:
+def supported_coins() -> tuple[str, ...]:
     """Coins we can resolve a network difficulty for."""
     return tuple(_ENDPOINTS.keys())
 
 
-def _fresh(coin: str) -> Optional[float]:
+def _fresh(coin: str) -> float | None:
     """Return the cached difficulty if it's within the TTL, else None."""
     entry = _cache.get(coin)
     if not entry:
@@ -60,14 +59,14 @@ def _fresh(coin: str) -> Optional[float]:
     return None
 
 
-def _stale(coin: str) -> Optional[float]:
+def _stale(coin: str) -> float | None:
     """Last known value regardless of age — used as a fallback when a
     refresh fails so a transient API hiccup doesn't blank the widget."""
     entry = _cache.get(coin)
     return entry[0] if entry else None
 
 
-async def get_difficulty(coin: str) -> Optional[float]:
+async def get_difficulty(coin: str) -> float | None:
     """Return the current network difficulty for ``coin`` ('btc' | 'bch').
 
     Returns ``None`` when the coin is unknown or the lookup fails with no
@@ -102,7 +101,7 @@ async def get_difficulty(coin: str) -> Optional[float]:
         return _stale(coin)
 
 
-def cached_difficulty(coin: str) -> Optional[float]:
+def cached_difficulty(coin: str) -> float | None:
     """Return the cached difficulty for ``coin`` without any network call.
 
     A hot, non-blocking read for callers that must never stall on the

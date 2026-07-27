@@ -12,7 +12,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.ambient_temp import (  # noqa: E402
+from backend.ambient_temp import (
     AVAIL_S,
     EVICT_S,
     AmbientRegistry,

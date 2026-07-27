@@ -12,14 +12,14 @@ from typing import Type
 
 from .base import MinerDriver, MinerSample
 from .bitaxe import BitaxeDriver
-from .nerdoctaxe import NerdOctaxeDriver
 from .bitforge import BitForgeDriver
-from .nmaxe import NmaxeDriver
-from .canaan import CanaanDriver
 from .braiins import BraiinsDriver
+from .canaan import CanaanDriver
 from .luxos import LuxosDriver
+from .nerdoctaxe import NerdOctaxeDriver
+from .nmaxe import NmaxeDriver
 
-DRIVERS: dict[str, Type[MinerDriver]] = {
+DRIVERS: dict[str, type[MinerDriver]] = {
     "bitaxe": BitaxeDriver,
     # NerdOctaxe shares the Bitaxe REST surface but adds dual-fan,
     # dual-pool and PSU-current readings — see nerdoctaxe.py.
@@ -37,7 +37,7 @@ DRIVERS: dict[str, Type[MinerDriver]] = {
 }
 
 
-def get_driver(family: str) -> Type[MinerDriver]:
+def get_driver(family: str) -> type[MinerDriver]:
     family = (family or "").lower()
     if family not in DRIVERS:
         raise ValueError(f"Unknown miner family: {family!r}")
@@ -54,16 +54,16 @@ def driver_for_record(record: dict) -> MinerDriver:
 
 
 __all__ = [
+    "DRIVERS",
+    "BitForgeDriver",
+    "BitaxeDriver",
+    "BraiinsDriver",
+    "CanaanDriver",
+    "LuxosDriver",
     "MinerDriver",
     "MinerSample",
-    "BitaxeDriver",
     "NerdOctaxeDriver",
-    "BitForgeDriver",
     "NmaxeDriver",
-    "CanaanDriver",
-    "BraiinsDriver",
-    "LuxosDriver",
-    "DRIVERS",
-    "get_driver",
     "driver_for_record",
+    "get_driver",
 ]

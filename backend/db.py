@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
+import sqlite3
 import aiosqlite
 
 from .config import db_path
@@ -37,8 +39,12 @@ CREATE TABLE IF NOT EXISTS miners (
     --       'minerwatch' (server-side PID based on target/floor)
     fan_mode        TEXT DEFAULT 'firmware',
     auto_target_c   REAL,                 -- target temperature for minerwatch mode
-    fan_min_override INTEGER,             -- minimum percent override (default 15)
+    fan_min_override INTEGER,             -- minimum percent override (default 25)
     fan_max_override INTEGER,             -- maximum percent override (default 100)
+    fan_vr_target_c REAL,                 -- VR target temperature for auto-fan governor (default 75)
+    fan_linked       INTEGER DEFAULT 1,   -- 1: linked fans, 0: independent fans
+    fan1_source      TEXT DEFAULT 'asic', -- target sensor for Fan 1 ('asic' | 'vr')
+    fan2_source      TEXT DEFAULT 'vr',   -- target sensor for Fan 2 ('asic' | 'vr')
     watchdog_overheat_c REAL,             -- per-miner overheat watchdog trigger in C (NULL means the global default of 75). Avalon/Canaan only
     -- Guardian (runtime frequency governor). Per-miner opt-in + the
     -- frequency ceiling/floor it operates within. All thresholds/steps
@@ -50,6 +56,8 @@ CREATE TABLE IF NOT EXISTS miners (
     guardian_freq_floor_mhz INTEGER,            -- optional floor override (NULL → global default)
     guardian_temp_source    TEXT,               -- vr (default) or chip — which sensor governs frequency
     guardian_max_temp_c     REAL,               -- per-miner max temp / high threshold (NULL → source default)
+    guardian_max_vr_temp_c  REAL,               -- per-miner max VR temp (NULL → global default)
+    guardian_max_chip_temp_c REAL,              -- per-miner max ASIC chip temp (NULL → global default)
     guardian_voltage_enabled INTEGER DEFAULT 0, -- 0/1 per-miner opt-in for the voltage co-tuner (Phase 2)
     guardian_max_power_w    REAL,               -- per-miner max power override (NULL → global default / telemetry)
     -- Offline-alert mute. When 1, the offline/disconnect alert is suppressed
@@ -237,6 +245,23 @@ CREATE TABLE IF NOT EXISTS best_records (
 );
 
 CREATE INDEX IF NOT EXISTS idx_best_records_miner ON best_records(miner_id);
+
+CREATE TABLE IF NOT EXISTS governor_decisions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    miner_id        INTEGER NOT NULL,
+    governor_type   TEXT NOT NULL,          -- 'guardian' | 'autofan'
+    ts              INTEGER NOT NULL,
+    chip_temp       REAL,
+    vr_temp         REAL,
+    target_chip_temp REAL,
+    target_vr_temp  REAL,
+    action_taken    TEXT NOT NULL,           -- 'STEP_DOWN', 'STEP_UP', 'HOLD', 'FAN_ADJUST'
+    reason          TEXT NOT NULL,
+    details         TEXT,                    -- JSON string of extra metadata
+    FOREIGN KEY (miner_id) REFERENCES miners(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_gov_decisions_miner_ts ON governor_decisions(miner_id, ts);
 
 -- Solo-mining block-found events. Each row is a share whose difficulty
 -- was greater than or equal to the Bitcoin network difficulty at the
@@ -443,6 +468,10 @@ def _init_db_sync() -> None:
             "ALTER TABLE miners ADD COLUMN auto_target_c REAL",
             "ALTER TABLE miners ADD COLUMN fan_min_override INTEGER",
             "ALTER TABLE miners ADD COLUMN fan_max_override INTEGER",
+            "ALTER TABLE miners ADD COLUMN fan_vr_target_c REAL",
+            "ALTER TABLE miners ADD COLUMN fan_linked INTEGER DEFAULT 1",
+            "ALTER TABLE miners ADD COLUMN fan1_source TEXT DEFAULT 'asic'",
+            "ALTER TABLE miners ADD COLUMN fan2_source TEXT DEFAULT 'vr'",
             # Per-miner overheat watchdog trigger override (Avalon/Canaan only).
             "ALTER TABLE miners ADD COLUMN watchdog_overheat_c REAL",
             # Guardian (runtime frequency governor) per-miner knobs.
@@ -451,6 +480,8 @@ def _init_db_sync() -> None:
             "ALTER TABLE miners ADD COLUMN guardian_freq_floor_mhz INTEGER",
             "ALTER TABLE miners ADD COLUMN guardian_temp_source TEXT",
             "ALTER TABLE miners ADD COLUMN guardian_max_temp_c REAL",
+            "ALTER TABLE miners ADD COLUMN guardian_max_vr_temp_c REAL",
+            "ALTER TABLE miners ADD COLUMN guardian_max_chip_temp_c REAL",
             "ALTER TABLE miners ADD COLUMN guardian_voltage_enabled INTEGER DEFAULT 0",
             # Offline-alert mute (per-miner): suppress disconnect alerts when
             # the miner is powered down on purpose, until it reconnects.
@@ -518,9 +549,8 @@ async def list_miners(only_enabled: bool = False) -> list[dict[str, Any]]:
     if only_enabled:
         sql += " WHERE enabled = 1"
     sql += " ORDER BY name COLLATE NOCASE"
-    async with connect() as conn:
-        async with conn.execute(sql) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(sql) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -735,12 +765,11 @@ async def insert_metric(miner_id: int, ts: int, sample: dict[str, Any]) -> None:
 
 
 async def latest_metric(miner_id: int) -> dict[str, Any] | None:
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT * FROM metrics WHERE miner_id = ? ORDER BY ts DESC LIMIT 1",
-            (miner_id,),
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT * FROM metrics WHERE miner_id = ? ORDER BY ts DESC LIMIT 1",
+        (miner_id,),
+    ) as cur:
+        row = await cur.fetchone()
     return dict(row) if row else None
 
 
@@ -750,12 +779,11 @@ async def get_latest_raw(miner_id: int) -> dict[str, Any] | None:
     Backing store for /api/miners/{id}/raw. Replaces reading the per-sample
     `metrics.raw` column (no longer written) — see `insert_metric`.
     """
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT ts, raw FROM latest_raw WHERE miner_id = ?",
-            (miner_id,),
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT ts, raw FROM latest_raw WHERE miner_id = ?",
+        (miner_id,),
+    ) as cur:
+        row = await cur.fetchone()
     return dict(row) if row else None
 
 
@@ -766,9 +794,8 @@ async def get_recent_metrics_average(miner_id: int, window_seconds: int) -> dict
         "SELECT AVG(hashrate_ths), AVG(power_w), AVG(temp_chip_c), AVG(temp_vr_c), AVG(error_pct) "
         "FROM metrics WHERE miner_id = ? AND ts >= ?"
     )
-    async with connect() as conn:
-        async with conn.execute(sql, (miner_id, cutoff)) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(sql, (miner_id, cutoff)) as cur:
+        row = await cur.fetchone()
     if row:
         return {
             "hashrate_ths": row[0],
@@ -1080,13 +1107,12 @@ async def update_best_records(
 async def get_miner_best_records(miner_id: int) -> dict[str, dict[str, Any] | None]:
     """Return ``{"session": {...} | None, "alltime": {...} | None}`` for a miner."""
     out: dict[str, dict[str, Any] | None] = {"session": None, "alltime": None}
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT scope, value, ts, uptime_at_record FROM best_records "
-            "WHERE miner_id = ?",
-            (miner_id,),
-        ) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(
+        "SELECT scope, value, ts, uptime_at_record FROM best_records "
+        "WHERE miner_id = ?",
+        (miner_id,),
+    ) as cur:
+        rows = await cur.fetchall()
     for r in rows:
         if r["scope"] not in _BEST_SCOPES:
             continue
@@ -1123,9 +1149,8 @@ async def get_fleet_best_records() -> dict[str, dict[str, Any] | None]:
     WHERE m.enabled = 1
     ORDER BY b.scope, b.value DESC
     """
-    async with connect() as conn:
-        async with conn.execute(sql) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(sql) as cur:
+        rows = await cur.fetchall()
     seen: set[str] = set()
     for r in rows:
         scope = r["scope"]
@@ -1168,9 +1193,8 @@ async def get_fleet_best_records_ranked(
     LIMIT ?
     """
     out: list[dict[str, Any]] = []
-    async with connect() as conn:
-        async with conn.execute(sql, (scope, limit)) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(sql, (scope, limit)) as cur:
+        rows = await cur.fetchall()
     for r in rows:
         out.append(
             {
@@ -1500,11 +1524,10 @@ async def run_tier_migration(
     # 1. Full backfill: aggregate ALL existing rows in `metrics` into
     # 1-minute buckets. The lookback window is the entire span of the
     # table, which on a fresh upgrade is at most a few weeks of data.
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT MIN(ts) AS mn, MAX(ts) AS mx FROM metrics"
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT MIN(ts) AS mn, MAX(ts) AS mx FROM metrics"
+    ) as cur:
+        row = await cur.fetchone()
     span = {"min_ts": row["mn"], "max_ts": row["mx"]} if row else {"min_ts": None, "max_ts": None}
 
     rolled_1m = 0
@@ -1603,11 +1626,10 @@ async def fleet_hashrate_buckets(
     GROUP BY bucket_ts
     ORDER BY bucket_ts ASC
     """
-    async with connect() as conn:
-        async with conn.execute(
-            sql, (bucket_seconds, bucket_seconds, from_ts, to_ts)
-        ) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(
+        sql, (bucket_seconds, bucket_seconds, from_ts, to_ts)
+    ) as cur:
+        rows = await cur.fetchall()
     points = [
         {"bucket_ts": int(r["bucket_ts"]), "total_ths": float(r["total_ths"] or 0)}
         for r in rows
@@ -1640,9 +1662,8 @@ async def list_alerts(limit: int = 200, only_unack: bool = False) -> list[dict[s
     if only_unack:
         sql += " WHERE acknowledged = 0"
     sql += " ORDER BY ts DESC LIMIT ?"
-    async with connect() as conn:
-        async with conn.execute(sql, (limit,)) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(sql, (limit,)) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -1891,11 +1912,10 @@ async def purge_push_subs() -> int:
 # ---------- Watched Bitcoin addresses ----------
 
 async def wallet_is_bootstrapped(address: str) -> bool:
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT 1 FROM wallet_watch_state WHERE address = ?", (address,)
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT 1 FROM wallet_watch_state WHERE address = ?", (address,)
+    ) as cur:
+        row = await cur.fetchone()
     return row is not None
 
 
@@ -1910,11 +1930,10 @@ async def wallet_mark_bootstrapped(address: str) -> None:
 
 
 async def wallet_seen_txids(address: str) -> set[str]:
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT txid FROM wallet_seen_txs WHERE address = ?", (address,)
-        ) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(
+        "SELECT txid FROM wallet_seen_txs WHERE address = ?", (address,)
+    ) as cur:
+        rows = await cur.fetchall()
     return {r["txid"] for r in rows}
 
 
@@ -1963,17 +1982,14 @@ async def set_fan_config(
     auto_target_c: float | None = None,
     fan_min_override: int | None = None,
     fan_max_override: int | None = None,
+    fan_vr_target_c: float | None = None,
+    fan_linked: int | None = None,
+    fan1_source: str | None = None,
+    fan2_source: str | None = None,
     fan_threshold_c: float | None = None,
     watchdog_overheat_c: float | None = None,
 ) -> None:
-    """Update the fan-control settings for a miner.
-
-    All fields are optional: pass only the ones you want to change,
-    the others are left untouched (COALESCE). ``watchdog_overheat_c`` is the
-    per-miner overheat-watchdog trigger (Avalon/Canaan only); NULL keeps the
-    global default. Like the other knobs here it can't be reset back to NULL
-    via COALESCE — the caller sets a concrete value or leaves it.
-    """
+    """Update the fan-control settings for a miner."""
     if fan_mode is not None and fan_mode not in ("manual", "firmware", "minerwatch"):
         raise ValueError(f"invalid fan_mode: {fan_mode!r}")
     async with connect() as conn:
@@ -1984,6 +2000,10 @@ async def set_fan_config(
               auto_target_c = COALESCE(?, auto_target_c),
               fan_min_override = COALESCE(?, fan_min_override),
               fan_max_override = COALESCE(?, fan_max_override),
+              fan_vr_target_c = COALESCE(?, fan_vr_target_c),
+              fan_linked = COALESCE(?, fan_linked),
+              fan1_source = COALESCE(?, fan1_source),
+              fan2_source = COALESCE(?, fan2_source),
               fan_threshold_c = COALESCE(?, fan_threshold_c),
               watchdog_overheat_c = COALESCE(?, watchdog_overheat_c),
               updated_at = ?
@@ -1994,6 +2014,10 @@ async def set_fan_config(
                 auto_target_c,
                 fan_min_override,
                 fan_max_override,
+                fan_vr_target_c,
+                fan_linked,
+                fan1_source,
+                fan2_source,
                 fan_threshold_c,
                 watchdog_overheat_c,
                 now_ts(),
@@ -2057,9 +2081,8 @@ async def list_block_finds(
     if not include_hidden:
         sql += " WHERE hidden = 0"
     sql += " ORDER BY ts DESC LIMIT ?"
-    async with connect() as conn:
-        async with conn.execute(sql, (int(limit),)) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(sql, (int(limit),)) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -2084,12 +2107,11 @@ async def last_block_find_share_value(miner_id: int) -> float | None:
     below the previous block-find value, we don't fire again. A new
     block-find must strictly exceed the last one to count.
     """
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT MAX(share_difficulty) AS v FROM block_finds WHERE miner_id = ?",
-            (miner_id,),
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT MAX(share_difficulty) AS v FROM block_finds WHERE miner_id = ?",
+        (miner_id,),
+    ) as cur:
+        row = await cur.fetchone()
     if not row or row["v"] is None:
         return None
     return float(row["v"])
@@ -2154,18 +2176,17 @@ async def set_notable_share_accepted(rowid: int, accepted: bool) -> None:
 
 async def list_notable_shares(miner_id: int, limit: int = 50) -> list[dict[str, Any]]:
     """Top notable shares for a miner, highest difficulty first."""
-    async with connect() as conn:
-        async with conn.execute(
-            """
+    async with connect() as conn, conn.execute(
+        """
             SELECT id, miner_id, ts, share_difficulty, pool_target, accepted
             FROM notable_shares
             WHERE miner_id = ?
             ORDER BY share_difficulty DESC, ts DESC
             LIMIT ?
             """,
-            (int(miner_id), int(limit)),
-        ) as cur:
-            rows = await cur.fetchall()
+        (int(miner_id), int(limit)),
+    ) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -2177,9 +2198,8 @@ async def get_latest_notable_share() -> dict[str, Any] | None:
     ``{id, miner_id, ts, share_difficulty, name}`` or ``None`` when no
     notable share has been logged yet.
     """
-    async with connect() as conn:
-        async with conn.execute(
-            """
+    async with connect() as conn, conn.execute(
+        """
             SELECT n.id, n.miner_id, n.ts, n.share_difficulty,
                    COALESCE(m.name, '—') AS name
             FROM notable_shares n
@@ -2188,8 +2208,8 @@ async def get_latest_notable_share() -> dict[str, Any] | None:
             ORDER BY n.ts DESC
             LIMIT 1
             """
-        ) as cur:
-            row = await cur.fetchone()
+    ) as cur:
+        row = await cur.fetchone()
     return dict(row) if row else None
 
 
@@ -2207,6 +2227,8 @@ async def set_guardian_config(
     freq_floor_mhz: int | None = None,
     temp_source: str | None = None,
     max_temp_c: float | None = None,
+    max_vr_temp_c: float | None = None,
+    max_chip_temp_c: float | None = None,
     voltage_enabled: bool | None = None,
     max_power_w: float | None = None,
 ) -> None:
@@ -2214,9 +2236,8 @@ async def set_guardian_config(
 
     All fields are optional: pass only the ones you want to change, the
     others are left untouched (COALESCE). ``enabled`` is stored as 0/1.
-    ``temp_source`` is "vr" | "chip" (which sensor governs frequency) and
-    ``max_temp_c`` is the per-miner high threshold (the recovery point is
-    derived from it at decision time).
+    ``max_vr_temp_c`` and ``max_chip_temp_c`` set the per-miner max temp targets
+    for VR and ASIC chip respectively.
     """
     enabled_int = None if enabled is None else (1 if enabled else 0)
     source = None if temp_source is None else str(temp_source).lower()
@@ -2230,6 +2251,8 @@ async def set_guardian_config(
               guardian_freq_floor_mhz = COALESCE(?, guardian_freq_floor_mhz),
               guardian_temp_source = COALESCE(?, guardian_temp_source),
               guardian_max_temp_c = COALESCE(?, guardian_max_temp_c),
+              guardian_max_vr_temp_c = COALESCE(?, guardian_max_vr_temp_c),
+              guardian_max_chip_temp_c = COALESCE(?, guardian_max_chip_temp_c),
               guardian_voltage_enabled = COALESCE(?, guardian_voltage_enabled),
               guardian_max_power_w = COALESCE(?, guardian_max_power_w),
               updated_at = ?
@@ -2241,6 +2264,8 @@ async def set_guardian_config(
                 freq_floor_mhz,
                 source,
                 max_temp_c,
+                max_vr_temp_c,
+                max_chip_temp_c,
                 voltage_int,
                 max_power_w,
                 now_ts(),
@@ -2296,12 +2321,11 @@ async def add_donation_miner(
 async def active_donation_miner_ids() -> set[int]:
     """Miner ids currently in an in-flight donation — used to refuse
     donating the same miner twice at once."""
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT DISTINCT miner_id FROM donation_miners "
-            "WHERE status IN ('active', 'unreachable')"
-        ) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(
+        "SELECT DISTINCT miner_id FROM donation_miners "
+        "WHERE status IN ('active', 'unreachable')"
+    ) as cur:
+        rows = await cur.fetchall()
     return {int(r["miner_id"]) for r in rows}
 
 
@@ -2321,9 +2345,8 @@ async def list_donation_miners(active_only: bool = True) -> list[dict[str, Any]]
     if active_only:
         sql += " WHERE dm.status IN ('active', 'unreachable')"
     sql += " ORDER BY d.ends_ts ASC, dm.id ASC"
-    async with connect() as conn:
-        async with conn.execute(sql) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(sql) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -2331,37 +2354,34 @@ async def donation_miners_due(now: int) -> list[dict[str, Any]]:
     """In-flight children whose donation window has elapsed (ready to
     auto-revert). Also returns those still flagged unreachable so the
     controller keeps retrying them."""
-    async with connect() as conn:
-        async with conn.execute(
-            """
+    async with connect() as conn, conn.execute(
+        """
             SELECT dm.*, d.ends_ts, d.worker_name
             FROM donation_miners dm
             JOIN donations d ON d.id = dm.donation_id
             WHERE dm.status IN ('active', 'unreachable') AND d.ends_ts <= ?
             ORDER BY dm.id ASC
             """,
-            (int(now),),
-        ) as cur:
-            rows = await cur.fetchall()
+        (int(now),),
+    ) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
 async def get_donation_miner(dm_id: int) -> dict[str, Any] | None:
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT * FROM donation_miners WHERE id = ?", (dm_id,)
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT * FROM donation_miners WHERE id = ?", (dm_id,)
+    ) as cur:
+        row = await cur.fetchone()
     return dict(row) if row else None
 
 
 async def donation_miners_for(donation_id: int) -> list[dict[str, Any]]:
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT * FROM donation_miners WHERE donation_id = ? ORDER BY id ASC",
-            (donation_id,),
-        ) as cur:
-            rows = await cur.fetchall()
+    async with connect() as conn, conn.execute(
+        "SELECT * FROM donation_miners WHERE donation_id = ? ORDER BY id ASC",
+        (donation_id,),
+    ) as cur:
+        rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
 
@@ -2411,9 +2431,182 @@ async def recompute_donation_status(donation_id: int) -> str:
 
 
 async def get_donation(donation_id: int) -> dict[str, Any] | None:
-    async with connect() as conn:
-        async with conn.execute(
-            "SELECT * FROM donations WHERE id = ?", (donation_id,)
-        ) as cur:
-            row = await cur.fetchone()
+    async with connect() as conn, conn.execute(
+        "SELECT * FROM donations WHERE id = ?", (donation_id,)
+    ) as cur:
+        row = await cur.fetchone()
     return dict(row) if row else None
+
+
+# ---------- Governor decision logging ----------
+
+async def insert_governor_decision(
+    miner_id: int,
+    governor_type: str,
+    action_taken: str,
+    reason: str,
+    chip_temp: float | None = None,
+    vr_temp: float | None = None,
+    target_chip_temp: float | None = None,
+    target_vr_temp: float | None = None,
+    details: dict | None = None,
+    ts: int | None = None,
+) -> int:
+    """Record a governor decision (Guardian or Auto-Fan) for a miner."""
+    t = ts if ts is not None else now_ts()
+    details_json = json.dumps(details) if details else None
+    async with connect() as conn:
+        cursor = await conn.execute(
+            """
+            INSERT INTO governor_decisions (
+              miner_id, governor_type, ts, chip_temp, vr_temp,
+              target_chip_temp, target_vr_temp, action_taken, reason, details
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                miner_id,
+                governor_type,
+                t,
+                chip_temp,
+                vr_temp,
+                target_chip_temp,
+                target_vr_temp,
+                action_taken,
+                reason,
+                details_json,
+            ),
+        )
+        await conn.commit()
+        return cursor.lastrowid
+
+
+async def get_governor_decisions(
+    miner_id: int,
+    governor_type: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Fetch recent governor decision logs for a miner."""
+    query = "SELECT * FROM governor_decisions WHERE miner_id = ?"
+    params: list[Any] = [miner_id]
+    if governor_type:
+        query += " AND governor_type = ?"
+        params.append(governor_type)
+    query += " ORDER BY ts DESC LIMIT ?"
+    params.append(limit)
+
+    async with connect() as conn:
+        async with conn.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            results = []
+            for r in rows:
+                d = dict(r)
+                if d.get("details"):
+                    try:
+                        d["details"] = json.loads(d["details"])
+                    except Exception:  # noqa: BLE001
+                        pass
+                results.append(d)
+            return results
+
+
+async def get_governor_history(miner_id: int, hours: int = 24) -> list[dict]:
+    """Fetch time-series governor decisions merged with metrics telemetry for charting.
+
+    Ensures the history graph is ALWAYS populated with temperature and fan speed
+    curves even when the miner is operating under firmware auto or manual mode.
+    """
+    cutoff = now_ts() - int(hours * 3600)
+    async with connect() as conn:
+        # 1. Fetch explicit governor decision records
+        async with conn.execute(
+            """
+            SELECT * FROM governor_decisions
+            WHERE miner_id = ? AND ts >= ?
+            ORDER BY ts ASC
+            """,
+            (miner_id, cutoff),
+        ) as cursor:
+            dec_rows = await cursor.fetchall()
+            decisions = []
+            for r in dec_rows:
+                d = dict(r)
+                if d.get("details"):
+                    try:
+                        d["details"] = json.loads(d["details"])
+                    except Exception:  # noqa: BLE001
+                        pass
+                decisions.append(d)
+
+        # 2. Fetch metrics telemetry rows to fill any gaps (e.g. firmware auto mode)
+        async with conn.execute(
+            """
+            SELECT ts, temp_chip_c, temp_vr_c, fan_pct, frequency_mhz
+            FROM metrics
+            WHERE miner_id = ? AND ts >= ?
+            ORDER BY ts ASC
+            """,
+            (miner_id, cutoff),
+        ) as cursor:
+            met_rows = await cursor.fetchall()
+
+    # Get target setpoints for miner
+    miner = await get_miner(miner_id)
+    target_chip = float(miner.get("auto_target_c") or 60.0) if miner else 60.0
+    target_vr = float(miner.get("fan_vr_target_c") or miner.get("auto_target_c") or 60.0) if miner else 60.0
+
+    # Index explicit decision timestamps to avoid duplicate points
+    dec_timestamps = {d["ts"] for d in decisions}
+
+    # Downsample metrics to ~1 point per 60s to keep graph smooth and fast
+    last_met_ts = 0
+    synthesized: list[dict] = []
+    for m in met_rows:
+        ts = m["ts"]
+        if ts - last_met_ts < 60:
+            continue
+        last_met_ts = ts
+
+        # Skip if an explicit decision was already logged near this timestamp
+        if any(abs(ts - dt) <= 10 for dt in dec_timestamps):
+            continue
+
+        # Add autofan entry
+        if m["temp_chip_c"] is not None or m["fan_pct"] is not None:
+            synthesized.append({
+                "id": f"m_fan_{ts}",
+                "miner_id": miner_id,
+                "governor_type": "autofan",
+                "ts": ts,
+                "chip_temp": m["temp_chip_c"],
+                "vr_temp": m["temp_vr_c"],
+                "target_chip_temp": target_chip,
+                "target_vr_temp": target_vr,
+                "action_taken": "STATUS",
+                "reason": "Firmware Telemetry",
+                "details": {
+                    "fan1_pct": m["fan_pct"],
+                    "fan2_pct": m["fan_pct"],
+                },
+            })
+
+        # Add guardian entry
+        if m["temp_chip_c"] is not None or m["frequency_mhz"] is not None:
+            synthesized.append({
+                "id": f"m_grd_{ts}",
+                "miner_id": miner_id,
+                "governor_type": "guardian",
+                "ts": ts,
+                "chip_temp": m["temp_chip_c"],
+                "vr_temp": m["temp_vr_c"],
+                "target_chip_temp": target_chip,
+                "target_vr_temp": target_vr,
+                "action_taken": "STATUS",
+                "reason": "Firmware Telemetry",
+                "details": {
+                    "freq_to": m["frequency_mhz"],
+                },
+            })
+
+    combined = decisions + synthesized
+    combined.sort(key=lambda x: x["ts"])
+    return combined

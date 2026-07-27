@@ -18,8 +18,14 @@ from typing import Any
 from .base import (
     MinerDriver,
     MinerSample,
+)
+from .base import (
     assign_cgminer_pool_slots as _assign_cgminer_pool_slots,
+)
+from .base import (
     parse_cgminer_pool_entry as _parse_cgminer_pool_entry,
+)
+from .base import (
     parse_si_difficulty as _parse_si_difficulty,
 )
 from .cgminer_client import CgminerClient, CgminerError

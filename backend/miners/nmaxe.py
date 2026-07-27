@@ -31,7 +31,8 @@ from typing import Any
 
 import httpx
 
-from .base import MinerSample, PoolSnapshot, parse_si_difficulty as _parse_si
+from .base import MinerSample, PoolSnapshot
+from .base import parse_si_difficulty as _parse_si
 from .bitaxe import BitaxeDriver, _opt_float, _opt_int
 
 
@@ -188,20 +189,22 @@ class NmaxeDriver(BitaxeDriver):
             return False
         return True
 
-    async def set_fan_speed(self, percent: int) -> bool:
+    async def set_fan_speed(self, percent: int, percent2: int | None = None) -> bool:
         """Manual fan duty via ``PATCH /api/setting/preference``.
 
         ``auto:false`` switches the fan out of firmware auto mode; ``id:0``
-        is the ASIC fan on every NMAxe model (``id:1`` is the NMQAxe++
-        Vcore fan, left on its own auto loop).
+        is the ASIC fan on NMAxe models (``id:1`` is the NMQAxe++ Vcore fan).
         """
         percent = max(0, min(100, int(percent)))
-        return await self._patch_preference(
-            {"fans": [{"id": 0, "auto": False, "speed": percent}]}
-        )
+        fans = [{"id": 0, "auto": False, "speed": percent}]
+        if percent2 is not None:
+            p2 = max(0, min(100, int(percent2)))
+            fans.append({"id": 1, "auto": False, "speed": p2})
+        return await self._patch_preference({"fans": fans})
 
-    async def set_auto_fan(self, enabled: bool) -> bool:
+    async def set_auto_fan(self, enabled: bool, target_temp_c: float | None = None) -> bool:
         """Hand the ASIC fan back to the firmware's auto (target-temp) loop."""
-        return await self._patch_preference(
-            {"fans": [{"id": 0, "auto": bool(enabled)}]}
-        )
+        fan_obj: dict[str, Any] = {"id": 0, "auto": bool(enabled)}
+        if enabled and target_temp_c is not None:
+            fan_obj["target"] = int(round(target_temp_c))
+        return await self._patch_preference({"fans": [fan_obj]})

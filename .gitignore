@@ -71,3 +71,4 @@ logs/
 # OS
 Thumbs.db
 desktop.ini
+.aider*

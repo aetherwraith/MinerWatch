@@ -20,9 +20,10 @@ from .base import (
     MinerSample,
     PoolConfig,
     PoolSnapshot,
+)
+from .base import (
     parse_si_difficulty as _parse_si_difficulty,
 )
-
 
 # Upper plausibility bound for a reported hashrate, as a multiple of the
 # chip's theoretical maximum (freq x small_core_count x asic_count). AxeOS
@@ -252,6 +253,7 @@ class BitaxeDriver(MinerDriver):
             temp_vr_c=temp_vr,
             fan_rpm=fan_rpm,
             fan_pct=fan_pct,
+            autofanspeed=_opt_int(data.get("autofanspeed")),
             frequency_mhz=freq_mhz,
             voltage_mv=voltage_mv,
             voltage_set_mv=voltage_set_mv,
@@ -352,13 +354,27 @@ class BitaxeDriver(MinerDriver):
             return False
         return True
 
-    async def set_fan_speed(self, percent: int) -> bool:
+    async def set_fan_speed(self, percent: int, percent2: int | None = None) -> bool:
         percent = max(0, min(100, int(percent)))
-        # autofanspeed=0 disattiva l'autofan, fanspeed imposta il duty.
-        return await self._patch_system({"autofanspeed": 0, "fanspeed": percent})
+        p2 = max(0, min(100, int(percent2))) if percent2 is not None else percent
+        # autofanspeed=0 disables firmware auto-fan.
+        # fanspeed, fanspeed2, and manualFanSpeed are sent for compatibility across AxeOS versions.
+        return await self._patch_system(
+            {
+                "autofanspeed": 0,
+                "fanspeed": percent,
+                "fanspeed2": p2,
+                "manualFanSpeed": percent,
+            }
+        )
 
-    async def set_auto_fan(self, enabled: bool) -> bool:
-        return await self._patch_system({"autofanspeed": 1 if enabled else 0})
+    async def set_auto_fan(self, enabled: bool, target_temp_c: float | None = None) -> bool:
+        payload: dict[str, Any] = {"autofanspeed": 1 if enabled else 0}
+        if enabled and target_temp_c is not None:
+            t = int(round(target_temp_c))
+            payload["tempTarget"] = t
+            payload["pidTargetTemp"] = t
+        return await self._patch_system(payload)
 
     async def set_frequency(self, mhz: int) -> bool:
         return await self._patch_system({"frequency": int(mhz)})

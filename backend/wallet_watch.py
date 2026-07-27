@@ -33,14 +33,13 @@ import asyncio
 import json
 import logging
 import re
-import time
 from typing import Any
 
 import httpx
 
-from .config import get_config
 from . import db
 from .alerts import send_notification
+from .config import get_config
 
 log = logging.getLogger("minerwatch.wallet_watch")
 
@@ -151,7 +150,7 @@ class WalletWatcher:
         while not self._stop.is_set():
             try:
                 await self.poll_once()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("wallet_watch: unexpected error in poll cycle")
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=POLL_INTERVAL_S)
@@ -185,7 +184,7 @@ class WalletWatcher:
                         "wallet_watch: fetch failed for %s (%s) — will retry next cycle",
                         _short_address(entry["address"]), exc,
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     log.exception(
                         "wallet_watch: error processing %s", _short_address(entry["address"])
                     )

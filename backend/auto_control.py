@@ -63,7 +63,8 @@ STARTUP_PCT = 70.0      # until a valid temperature is available
 
 # Default setpoint when the user hasn't set one (Bitaxe default ~60°C).
 DEFAULT_TARGET_C = 60.0
-DEFAULT_FAN_MIN = 0
+DEFAULT_VR_TARGET_C = 60.0
+DEFAULT_FAN_MIN = 25
 DEFAULT_FAN_MAX = 100
 
 # Only change speed if the delta is ≥ APPLY_THRESHOLD, to avoid
@@ -245,12 +246,24 @@ class PIDController:
 
 # Per-miner state: PID + filtered_input + last commanded fan
 class _MinerState:
-    __slots__ = ("pid", "filtered_temp", "last_commanded_pct")
+    __slots__ = (
+        "filtered_temp",
+        "filtered_vr_temp",
+        "fw_floor",
+        "last_commanded_pct",
+        "last_commanded_pct2",
+        "pid",
+        "pid_vr",
+    )
 
     def __init__(self) -> None:
         self.pid = PIDController()
+        self.pid_vr = PIDController()
         self.filtered_temp: float | None = None
+        self.filtered_vr_temp: float | None = None
         self.last_commanded_pct: int | None = None
+        self.last_commanded_pct2: int | None = None
+        self.fw_floor: float | None = None
 
 
 # Per-miner state for the overheat watchdog (separate from the PID
@@ -258,10 +271,10 @@ class _MinerState:
 # lifecycle — it can force 100% while the PID is disabled).
 class _WatchdogState:
     __slots__ = (
-        "overheat_count",
-        "release_count",
         "forced",
         "last_alert_ts",
+        "overheat_count",
+        "release_count",
     )
 
     def __init__(self) -> None:
@@ -315,7 +328,7 @@ class AutoFanController:
         while not self._stop.is_set():
             try:
                 await self._tick(_poller.last_results)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("autofan tick error")
             # Periodic heartbeat log: useful to see from the logs whether
             # the loop is still alive. Also exposed via `last_tick_ts`.
@@ -352,8 +365,20 @@ class AutoFanController:
             if forced:
                 continue
 
-            # 2. Server-side PID — minerwatch mode only.
+            # 2. Server-side check/PID.
             mode = (miner.get("fan_mode") or "firmware").lower()
+            if mode == "manual":
+                # If firmware is set back to auto on device, respect that and switch DB to firmware mode
+                if sample.autofanspeed is not None and sample.autofanspeed != 0:
+                    try:
+                        await db.set_fan_config(miner_id, fan_mode="firmware")
+                        log.info(
+                            "miner %s: onboard firmware auto-fan active (%d); updated MinerWatch fan_mode to 'firmware'",
+                            miner.get("name"), sample.autofanspeed,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("miner %s: failed to sync fan_mode to firmware: %s", miner_id, exc)
+                continue
             if mode != "minerwatch":
                 continue
             if sample.temp_chip_c is None:
@@ -423,7 +448,7 @@ class AutoFanController:
         if drv.can_set_fan:
             try:
                 await drv.set_fan_speed(100)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception(
                     "WATCHDOG miner=%s set_fan_speed(100) failed", miner.get("name")
                 )
@@ -447,7 +472,7 @@ class AutoFanController:
                     "body": msg,
                     "miner_id": miner_id,
                 })
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("WATCHDOG miner=%s push alert failed", miner.get("name"))
             state.last_alert_ts = now
 
@@ -473,14 +498,20 @@ class AutoFanController:
                 "body": msg,
                 "miner_id": miner_id,
             })
-        except Exception:  # noqa: BLE001
+        except Exception:
             log.exception(
                 "WATCHDOG miner=%s recovery push failed", miner.get("name")
             )
 
     async def _adjust_one(self, miner: dict, sample: MinerSample) -> None:
         miner_id = int(miner["id"])
-        target = float(miner.get("auto_target_c") or DEFAULT_TARGET_C)
+        target_asic = float(miner.get("auto_target_c") or DEFAULT_TARGET_C)
+        target_vr = float(
+            miner.get("fan_vr_target_c")
+            or miner.get("auto_target_c")
+            or miner.get("guardian_max_vr_temp_c")
+            or DEFAULT_VR_TARGET_C
+        )
         fan_min = int(miner.get("fan_min_override") or DEFAULT_FAN_MIN)
         fan_max = int(miner.get("fan_max_override") or DEFAULT_FAN_MAX)
         fan_min = max(0, fan_min)
@@ -493,26 +524,31 @@ class AutoFanController:
             return
 
         state = _states.get(miner_id)
-        if state is None:
+        is_new_state = state is None
+        if is_new_state:
             state = _MinerState()
             _states[miner_id] = state
+
+        # Determine current running firmware fan speed as baseline floor
+        fw_fan1 = float(sample.fan_pct) if sample.fan_pct is not None and sample.fan_pct > 0 else 0.0
+        fw_fan2 = float(sample.fan_pct_2) if sample.fan_pct_2 is not None and sample.fan_pct_2 > 0 else fw_fan1
+        fw_baseline = max(fw_fan1, fw_fan2, float(fan_min))
+
+        if is_new_state:
+            state.fw_floor = fw_baseline
             state.pid.set_output_limits(float(fan_min), float(fan_max))
-            # Bumpless start: begin from the current fan speed (if available)
-            current_pct = float(sample.fan_pct) if sample.fan_pct else (fan_min + fan_max) / 2.0
-            state.pid.initialize(float(sample.temp_chip_c or target), current_pct)
-            state.last_commanded_pct = int(round(current_pct))
-            log.info(
-                "auto-fan miner=%s init at %.1f°C → %d%% (target %.1f°C, range %d-%d%%)",
-                miner["name"], sample.temp_chip_c, state.last_commanded_pct,
-                target, fan_min, fan_max,
-            )
+            state.pid_vr.set_output_limits(float(fan_min), float(fan_max))
+            state.pid.initialize(float(sample.temp_chip_c or target_asic), fw_baseline)
+            state.pid_vr.initialize(float(sample.temp_vr_c or target_vr), fw_baseline)
+            state.last_commanded_pct = int(round(fw_baseline))
+            state.last_commanded_pct2 = int(round(fw_baseline))
 
-        # Update setpoint and limits if they changed at runtime via the UI
-        state.pid.setpoint = target
+        state.pid.setpoint = target_asic
         state.pid.set_output_limits(float(fan_min), float(fan_max))
+        state.pid_vr.setpoint = target_vr
+        state.pid_vr.set_output_limits(float(fan_min), float(fan_max))
 
-        # EMA input filter like Bitaxe (alpha=0.2)
-        # For chip avg + chip2 take the max (worst chip), like Bitaxe.
+        # Filter ASIC chip temp
         raw_temp = float(sample.temp_chip_c)
         if state.filtered_temp is None:
             state.filtered_temp = raw_temp
@@ -521,12 +557,48 @@ class AutoFanController:
                 EMA_ALPHA * raw_temp + (1 - EMA_ALPHA) * state.filtered_temp
             )
         state.pid.input_value = state.filtered_temp
+        out_asic = state.pid.compute()
 
-        new_output = state.pid.compute()
-        new_pct = int(round(max(fan_min, min(fan_max, new_output))))
+        # Filter VR temp (if available)
+        out_vr = out_asic
+        if sample.temp_vr_c is not None and sample.temp_vr_c > 0:
+            raw_vr_temp = float(sample.temp_vr_c)
+            if state.filtered_vr_temp is None:
+                state.filtered_vr_temp = raw_vr_temp
+            else:
+                state.filtered_vr_temp = (
+                    EMA_ALPHA * raw_vr_temp + (1 - EMA_ALPHA) * state.filtered_vr_temp
+                )
+            state.pid_vr.input_value = state.filtered_vr_temp
+            out_vr = state.pid_vr.compute()
 
-        last = state.last_commanded_pct or new_pct
-        if abs(new_pct - last) < APPLY_THRESHOLD:
+        # On transition to auto, ensure fan speed starts at least at current firmware speed,
+        # decaying smoothly (1% per tick / 5 seconds) towards fan_min to avoid sudden drops.
+        if state.fw_floor is not None:
+            out_asic = max(out_asic, state.fw_floor)
+            out_vr = max(out_vr, state.fw_floor)
+            state.fw_floor = max(float(fan_min), state.fw_floor - 1.0)
+            if state.fw_floor <= float(fan_min):
+                state.fw_floor = None
+
+        fan_linked_val = miner.get("fan_linked")
+        is_linked = fan_linked_val is None or bool(fan_linked_val)
+
+        if is_linked:
+            f1_pct = max(out_asic, out_vr)
+            f2_pct = max(out_asic, out_vr)
+        else:
+            f1_source = (miner.get("fan1_source") or "asic").lower()
+            f2_source = (miner.get("fan2_source") or "vr").lower()
+            f1_pct = out_asic if f1_source == "asic" else out_vr
+            f2_pct = out_asic if f2_source == "asic" else out_vr
+
+        new_pct1 = int(round(max(fan_min, min(fan_max, f1_pct))))
+        new_pct2 = int(round(max(fan_min, min(fan_max, f2_pct))))
+
+        last1 = state.last_commanded_pct or new_pct1
+        last2 = state.last_commanded_pct2 or new_pct2
+        if abs(new_pct1 - last1) < APPLY_THRESHOLD and abs(new_pct2 - last2) < APPLY_THRESHOLD:
             return  # delta too small, don't spam the miner
 
         # Send the command to the miner
@@ -535,16 +607,35 @@ class AutoFanController:
         if not drv.can_set_fan:
             return
         try:
-            ok = await drv.set_fan_speed(new_pct)
+            ok = await drv.set_fan_speed(new_pct1, percent2=new_pct2)
         except Exception as exc:  # noqa: BLE001
             log.warning("miner %s: set_fan_speed failed: %s", miner["id"], exc)
             return
         if ok:
-            state.last_commanded_pct = new_pct
+            state.last_commanded_pct = new_pct1
+            state.last_commanded_pct2 = new_pct2
             log.info(
-                "auto-fan miner=%s temp=%.1f→%.1f (target %.1f) → %d%% (was %d%%)",
-                miner["name"], raw_temp, state.filtered_temp, target, new_pct, last,
+                "auto-fan miner=%s chip=%.1f°C/vr=%.1f°C → fan1=%d%% fan2=%d%%",
+                miner["name"], raw_temp, sample.temp_vr_c or 0, new_pct1, new_pct2,
             )
+            try:
+                await db.insert_governor_decision(
+                    miner_id=miner_id,
+                    governor_type="autofan",
+                    action_taken="FAN_ADJUST",
+                    reason=f"Fan adjusted: Fan 1 = {new_pct1}%, Fan 2 = {new_pct2}%",
+                    chip_temp=raw_temp,
+                    vr_temp=sample.temp_vr_c,
+                    target_chip_temp=target_asic,
+                    target_vr_temp=target_vr,
+                    details={"fan1_pct": new_pct1, "fan2_pct": new_pct2, "is_linked": is_linked},
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+    def reset_miner_state(self, miner_id: int) -> None:
+        """Reset PID state for a miner when fan_mode is changed to auto/minerwatch."""
+        _states.pop(miner_id, None)
 
 
 # Global instance (used by main.py)

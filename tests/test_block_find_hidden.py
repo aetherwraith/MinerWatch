@@ -20,7 +20,7 @@ import tempfile
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import db  # noqa: E402
+from backend import db
 
 _TMP = tempfile.TemporaryDirectory(prefix="mw-test-hidden-")
 

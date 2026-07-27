@@ -18,7 +18,6 @@ from backend import discovery
 from backend import main as main_mod
 from backend.main import MinerCreate, api_create_miner
 
-
 # ---- identify_host (single-host fingerprint) ----------------------
 
 def test_identify_host_offline_returns_none():

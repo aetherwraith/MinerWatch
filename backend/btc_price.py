@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Optional, Tuple
 
 import httpx
 
@@ -40,10 +39,10 @@ _DAY_S = 24 * 60 * 60
 _cache: dict = {"usd": None, "chg": None, "ts": 0}
 
 # Single in-flight background refresh, scheduled by ensure_fresh().
-_refresh_task: Optional[asyncio.Task] = None
+_refresh_task: asyncio.Task | None = None
 
 
-async def _fetch(now: int) -> Tuple[Optional[float], Optional[float]]:
+async def _fetch(now: int) -> tuple[float | None, float | None]:
     """Fetch the spot price and (best-effort) the 24h change.
 
     Returns ``(usd, change_pct_or_None)``. ``usd`` is ``None`` when the price
@@ -58,7 +57,7 @@ async def _fetch(now: int) -> Tuple[Optional[float], Optional[float]]:
         if not usd or usd <= 0:
             return None, None
 
-        chg: Optional[float] = None
+        chg: float | None = None
         try:
             h = await client.get(
                 HISTORICAL_URL,
@@ -77,7 +76,7 @@ async def _fetch(now: int) -> Tuple[Optional[float], Optional[float]]:
         return usd, chg
 
 
-async def get_btc() -> Tuple[Optional[float], Optional[float], int]:
+async def get_btc() -> tuple[float | None, float | None, int]:
     """Return ``(usd, change_pct_or_None, fetched_at_epoch)``.
 
     Cached for ``_CACHE_TTL_S``; on a refresh failure returns the last known
@@ -102,7 +101,7 @@ async def get_btc() -> Tuple[Optional[float], Optional[float], int]:
     return _cache["usd"], _cache["chg"], _cache["ts"]
 
 
-def cached_btc() -> Tuple[Optional[float], Optional[float]]:
+def cached_btc() -> tuple[float | None, float | None]:
     """Return the cached ``(usd, change_pct)`` without any network call.
 
     A hot, non-blocking read for callers that must never stall on the

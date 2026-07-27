@@ -30,8 +30,14 @@ from typing import Any
 from .base import (
     MinerDriver,
     MinerSample,
+)
+from .base import (
     assign_cgminer_pool_slots as _assign_cgminer_pool_slots,
+)
+from .base import (
     parse_cgminer_pool_entry as _parse_cgminer_pool_entry,
+)
+from .base import (
     parse_si_difficulty as _parse_si_difficulty,
 )
 from .cgminer_client import CgminerClient, CgminerError
@@ -172,7 +178,7 @@ class CanaanDriver(MinerDriver):
             return False
         return _ascset_ok(resp)
 
-    async def set_auto_fan(self, enabled: bool = True) -> bool:
+    async def set_auto_fan(self, enabled: bool = True, target_temp_c: float | None = None) -> bool:
         """Firmware auto mode (handled internally by Avalon)."""
         if not enabled:
             # "Disabling auto" means going back to manual; the default

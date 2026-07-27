@@ -14,8 +14,8 @@ import sys
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.miners.base import MinerSample  # noqa: E402
-from backend.panel import PANEL_MAX_TEMPS, _num, panel_feed  # noqa: E402
+from backend.miners.base import MinerSample
+from backend.panel import PANEL_MAX_TEMPS, _num, panel_feed
 
 
 def _sample(**kw) -> MinerSample:
@@ -132,7 +132,7 @@ def test_panel_feed_applies_custom_order() -> None:
     ]
     # Same rows as the unordered feed — a pure permutation. Every field
     # of every miner is byte-identical; only the array order changed.
-    by_id = lambda r: r["id"]  # noqa: E731
+    by_id = lambda r: r["id"]
     assert sorted(feed["miners"], key=by_id) == sorted(baseline["miners"], key=by_id)
     assert json.loads(json.dumps(feed)) == feed
 

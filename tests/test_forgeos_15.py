@@ -31,20 +31,20 @@ from unittest.mock import AsyncMock, patch
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import db, discovery  # noqa: E402
-from backend.donations import (  # noqa: E402
+from backend import db, discovery
+from backend.donations import (
     donation_pool_config,
     donation_pool_config_fallback,
 )
-from backend.log_streamer import (  # noqa: E402
+from backend.log_streamer import (
+    _SHARE,
     LogStreamer,
     MinerStream,
-    _SHARE,
     _parse_diff_token,
 )
-from backend.miners.base import PoolConfig, parse_si_difficulty  # noqa: E402
-from backend.miners.bitaxe import BitaxeDriver  # noqa: E402
-from backend.miners.bitforge import BitForgeDriver  # noqa: E402
+from backend.miners.base import PoolConfig, parse_si_difficulty
+from backend.miners.bitaxe import BitaxeDriver
+from backend.miners.bitforge import BitForgeDriver
 
 _TMP = tempfile.TemporaryDirectory(prefix="mw-test-forge15-")
 

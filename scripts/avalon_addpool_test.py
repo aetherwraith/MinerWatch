@@ -40,7 +40,7 @@ def call(host, port, command, parameter=None, timeout=6.0):
         while True:
             try:
                 b = s.recv(4096)
-            except socket.timeout:
+            except TimeoutError:
                 break
             if not b:
                 break

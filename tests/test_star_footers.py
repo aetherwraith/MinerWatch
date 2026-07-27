@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import alerts  # noqa: E402
+from backend import alerts
 
 NOW = 1_900_000_000
 

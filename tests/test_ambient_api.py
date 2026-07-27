@@ -14,13 +14,15 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-import pytest  # noqa: E402
-from pydantic import ValidationError  # noqa: E402
+import pytest
+from pydantic import ValidationError
 
-from backend import ambient_temp  # noqa: E402
-from backend import auth  # noqa: E402
-from backend import main as main_mod  # noqa: E402
-from backend.main import AmbientPayload, AmbientSensorAssignment  # noqa: E402
+from backend import (
+    ambient_temp,
+    auth,
+)
+from backend import main as main_mod
+from backend.main import AmbientPayload, AmbientSensorAssignment
 
 VALID = {"temp_c": 23.48, "name": "Ambiente", "sensor_id": "020000000001"}
 

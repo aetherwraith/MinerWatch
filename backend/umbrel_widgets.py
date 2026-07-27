@@ -37,8 +37,9 @@ fetches without a session cookie; they expose only coarse fleet numbers.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any
 
 # How long the fleet widget stays in celebration mode after a block
 # find. A block is a once-in-a-lifetime event for a small solo fleet;

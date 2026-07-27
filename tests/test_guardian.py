@@ -13,12 +13,11 @@ from __future__ import annotations
 import pathlib
 import sys
 import types
-import pytest
 
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.guardian import (  # noqa: E402
+from backend.guardian import (
     _GuardianState,
     _reject_pct,
     decide_frequency,
@@ -135,6 +134,23 @@ def test_floor_above_ceiling_clamped():
     # cool-VR up-step lands on the ceiling and holds rather than exploding.
     target, _ = decide(current_freq=600, floor_mhz=620, temp_c=60.0, hw_error_pct=0.0)
     assert target == 600
+
+
+def test_fan_overhead_blocks_step_up():
+    # Cool temperatures, but fan is running at max capacity (100% >= 95%) -> hold frequency
+    from backend.guardian import decide_frequency
+    target, reason = decide_frequency(
+        current_freq=500,
+        ceiling_mhz=600,
+        floor_mhz=400,
+        chip_temp_c=50.0,
+        chip_low_c=60.0,
+        chip_high_c=70.0,
+        fan_pct=100.0,
+        max_fan_pct=95.0,
+    )
+    assert target == 500
+    assert "max capacity" in reason
 
 
 # ---- reject-rate windowed helper -------------------------------------------
@@ -395,8 +411,9 @@ def test_pt_above_ceiling_caps():
 def test_govern_one_uses_recent_averages():
     import asyncio
     from unittest.mock import AsyncMock, Mock, patch
+
+    from backend.guardian import _GuardianState, guardian
     from backend.miners.base import MinerSample
-    from backend.guardian import guardian, _GuardianState
 
     miner = {"id": 1, "name": "miner1", "family": "bitaxe", "guardian_temp_source": "vr"}
     sample = MinerSample(
@@ -468,8 +485,9 @@ def test_govern_one_uses_recent_averages():
 def test_govern_one_resolves_power_limit_override():
     import asyncio
     from unittest.mock import AsyncMock, Mock, patch
+
+    from backend.guardian import _GuardianState, guardian
     from backend.miners.base import MinerSample
-    from backend.guardian import guardian, _GuardianState
 
     miner = {
         "id": 1,
@@ -557,6 +575,50 @@ def test_govern_one_resolves_power_limit_override():
             assert mock_decide_point.call_args.kwargs["power_cutoff_w"] == 45.0
 
     asyncio.run(run())
+
+
+def test_dual_monitoring_vr_hot_steps_down():
+    target, reason = decide_frequency(
+        current_freq=550, ceiling_mhz=600, floor_mhz=400,
+        vr_temp_c=72.0, vr_high_c=70.0, vr_low_c=65.0,
+        chip_temp_c=55.0, chip_high_c=60.0, chip_low_c=57.0,
+        hw_error_pct=0.0,
+    )
+    assert target == 530
+    assert "VR" in reason
+
+
+def test_dual_monitoring_chip_hot_steps_down():
+    target, reason = decide_frequency(
+        current_freq=550, ceiling_mhz=600, floor_mhz=400,
+        vr_temp_c=63.0, vr_high_c=70.0, vr_low_c=65.0,
+        chip_temp_c=62.0, chip_high_c=60.0, chip_low_c=57.0,
+        hw_error_pct=0.0,
+    )
+    assert target == 530
+    assert "Chip" in reason
+
+
+def test_dual_monitoring_both_cool_steps_up():
+    target, reason = decide_frequency(
+        current_freq=550, ceiling_mhz=600, floor_mhz=400,
+        vr_temp_c=62.0, vr_high_c=70.0, vr_low_c=65.0,
+        chip_temp_c=54.0, chip_high_c=60.0, chip_low_c=57.0,
+        hw_error_pct=0.0,
+    )
+    assert target == 560
+    assert "cool" in reason
+
+
+def test_dual_monitoring_one_hot_one_cool_steps_down():
+    target, reason = decide_frequency(
+        current_freq=550, ceiling_mhz=600, floor_mhz=400,
+        vr_temp_c=62.0, vr_high_c=70.0, vr_low_c=65.0,
+        chip_temp_c=63.0, chip_high_c=60.0, chip_low_c=57.0,
+        hw_error_pct=0.0,
+    )
+    assert target == 530
+    assert "Chip" in reason
 
 
 if __name__ == "__main__":

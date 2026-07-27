@@ -22,6 +22,10 @@ export interface MinerRecord {
   auto_target_c: number | null;
   fan_min_override: number | null;
   fan_max_override: number | null;
+  fan_vr_target_c: number | null;
+  fan_linked: number | null;
+  fan1_source: string | null;
+  fan2_source: string | null;
   // Per-miner overheat-watchdog trigger °C (Avalon/Canaan only). null → the
   // global 75°C default. The fan-to-100% release trails it by a fixed 10°C.
   watchdog_overheat_c: number | null;
@@ -29,8 +33,10 @@ export interface MinerRecord {
   guardian_enabled: number | null;          // 0 | 1 (SQLite int)
   guardian_max_freq_mhz: number | null;      // ceiling ("max frequency")
   guardian_freq_floor_mhz: number | null;    // optional floor override
-  guardian_temp_source: string | null;       // 'vr' (default) | 'chip'
+  guardian_temp_source: string | null;       // 'vr' (default) | 'chip' | 'both'
   guardian_max_temp_c: number | null;         // per-miner max temp (high threshold)
+  guardian_max_vr_temp_c: number | null;      // per-miner max VR temp
+  guardian_max_chip_temp_c: number | null;    // per-miner max ASIC chip temp
   guardian_max_power_w: number | null;        // per-miner max power override
   last_status: string | null;
   // Offline-alert mute (0 | 1). When 1, disconnect alerts are silenced for
@@ -53,6 +59,8 @@ export interface MetricSample {
   temp_vr_c: number | null;
   fan_rpm: number | null;
   fan_pct: number | null;
+  fan_rpm_2: number | null;
+  fan_pct_2: number | null;
   frequency_mhz: number | null;
   voltage_mv: number | null;
   uptime_s: number | null;
@@ -648,11 +656,11 @@ export interface GuardianLive {
   frequency_mhz: number | null;
   ceiling_mhz: number | null;
   floor_mhz: number | null;
-  // Governed sensor reading + which sensor it is. ``vr_temp_c`` is kept for
-  // backward compatibility (populated only in VR mode).
+  // Governed sensor reading + which sensor it is.
   temp_c: number | null;
-  temp_source: 'vr' | 'chip';
+  temp_source: string;
   vr_temp_c: number | null;
+  chip_temp_c: number | null;
   reject_pct: number | null;
   // Effective hashrate + ASIC hardware-error signals behind the regression
   // brake; soft_ceiling_mhz is the in-memory cap pinned after a regression.
@@ -697,9 +705,12 @@ export interface GuardianStatusResponse {
   miner_enabled: boolean;  // per-miner opt-in
   max_freq_mhz: number | null;
   freq_floor_mhz: number | null;
-  temp_source: 'vr' | 'chip';   // which sensor governs frequency
-  max_temp_c: number | null;    // per-miner high threshold (null → source default)
+  temp_source: string;   // 'vr' | 'chip' | 'both'
+  max_temp_c: number | null;    // per-miner high threshold
+  max_vr_temp_c: number | null; // per-miner max VR temp
+  max_chip_temp_c: number | null; // per-miner max ASIC chip temp
   max_power_w: number | null;   // per-miner max power override
+  miner_max_power_w: number | null; // telemetry-reported max power
   voltage_enabled: boolean;     // per-miner opt-in for the voltage co-tuner (Phase 2)
   supports_voltage: boolean;    // family exposes voltage control
   voltage_master: boolean;      // global master switch for the voltage lever
@@ -905,4 +916,27 @@ export interface WhatsNewHighlight {
 export interface WhatsNewResponse {
   version: string;
   highlights: WhatsNewHighlight[];
+}
+
+export interface LogRecord {
+  id: number;
+  ts: number;
+  timestamp: string;
+  level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG';
+  logger: string;
+  message: string;
+}
+
+export interface GovernorDecisionRecord {
+  id: number;
+  miner_id: number;
+  governor_type: 'guardian' | 'autofan';
+  ts: number;
+  chip_temp: number | null;
+  vr_temp: number | null;
+  target_chip_temp: number | null;
+  target_vr_temp: number | null;
+  action_taken: string;
+  reason: string;
+  details: Record<string, any> | null;
 }

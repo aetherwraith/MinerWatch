@@ -22,7 +22,7 @@ import sys
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.miners.bitaxe import BitaxeDriver  # noqa: E402
+from backend.miners.bitaxe import BitaxeDriver
 
 
 def _sample_info(**overrides):

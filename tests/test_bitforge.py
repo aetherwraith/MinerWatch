@@ -21,10 +21,10 @@ from unittest.mock import AsyncMock, patch
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import discovery  # noqa: E402
-from backend.discovery import _pretty_bitforge_model  # noqa: E402
-from backend.miners import DRIVERS, get_driver  # noqa: E402
-from backend.miners.bitforge import BitForgeDriver  # noqa: E402
+from backend import discovery
+from backend.discovery import _pretty_bitforge_model
+from backend.miners import DRIVERS, get_driver
+from backend.miners.bitforge import BitForgeDriver
 
 
 def _forge_info(**overrides):

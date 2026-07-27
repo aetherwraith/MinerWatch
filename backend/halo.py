@@ -11,7 +11,8 @@ calls — documented at :func:`_advance_share_seq`.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 # Lower bound of the log scale: the pool's minimum share difficulty. A
 # constant is fine here — pool floors don't move much and the consumer

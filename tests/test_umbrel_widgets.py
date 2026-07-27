@@ -21,7 +21,7 @@ from types import SimpleNamespace
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.umbrel_widgets import (  # noqa: E402
+from backend.umbrel_widgets import (
     BLOCK_CELEBRATION_SECONDS,
     WIDGET_REFRESH,
     build_fleet_widget,

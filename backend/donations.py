@@ -139,7 +139,7 @@ class DonationController:
         while not self._stop.is_set():
             try:
                 await self._tick()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("donation tick error")
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=TICK_SECONDS)

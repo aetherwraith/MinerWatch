@@ -21,8 +21,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .config import ROOT_DIR
 from . import updater
+from .config import ROOT_DIR
 
 # At most this many highlights reach the dialog; beyond that it stops
 # being a glance and starts being a changelog.
@@ -52,7 +52,7 @@ def parse_changelog_highlights(text: str, version: str) -> list[dict[str, str]]:
 
     highlights: list[dict[str, str]] = []
     for chunk in re.split(r"\n- ", section):
-        match = re.match(r"\s*\*\*(.+?)\*\*\s*(.*)", chunk, flags=re.S)
+        match = re.match(r"\s*\*\*(.+?)\*\*\s*(.*)", chunk, flags=re.DOTALL)
         if not match:
             continue
         title = _strip_markdown(match.group(1)).strip().rstrip(".")
@@ -68,7 +68,7 @@ def _version_section(text: str, version: str) -> str:
     """The body of ``## [<version>]`` up to the next ``## `` heading."""
     pattern = re.compile(
         r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## |\Z)",
-        flags=re.S | re.M,
+        flags=re.DOTALL | re.MULTILINE,
     )
     match = pattern.search(text)
     return match.group(1) if match else ""

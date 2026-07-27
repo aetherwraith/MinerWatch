@@ -14,25 +14,33 @@ import hmac
 import logging
 import time
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import db
-from . import coin_difficulty
-from . import btc_price
-from . import halo
-from . import panel
-from . import system_info
-from . import umbrel_widgets
-from . import whatsnew
+from . import (
+    btc_price,
+    coin_difficulty,
+    db,
+    halo,
+    panel,
+    system_info,
+    umbrel_widgets,
+    updater,
+    whatsnew,
+)
 from .alerts import ensure_vapid_keys, public_key_b64
+from .ambient_temp import VALID_MAX_C, VALID_MIN_C, ambient
 from .auth import (
     clear_login_failures,
     login_lockout_remaining,
@@ -41,16 +49,14 @@ from .auth import (
     require_auth,
 )
 from .auto_control import auto_fan
-from .donations import donation_controller
 from .config import FRONTEND_DIR, db_path, get_config, reload_config
 from .discovery import discover_and_register, identify_host, scan_network
+from .donations import donation_controller
+from .guardian import GUARDIAN_FAMILIES, guardian
+from .log_streamer import log_streamer
 from .miners import DRIVERS, driver_for_record
 from .poller import poller
-from .ambient_temp import ambient, VALID_MIN_C, VALID_MAX_C
-from .guardian import guardian, GUARDIAN_FAMILIES
-from .log_streamer import log_streamer
 from .wallet_watch import wallet_watcher
-from . import updater
 
 logging.basicConfig(
     level=logging.INFO,
@@ -97,6 +103,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def on_startup() -> None:
+    from .log_buffer import ring_buffer_handler
+    logging.getLogger().addHandler(ring_buffer_handler)
     cfg = get_config()
     await db.init_db()
 
@@ -333,7 +341,7 @@ class MinerCreate(BaseModel):
     """
 
     host: str
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @app.get("/api/health")
@@ -461,7 +469,7 @@ class MinerOrderPayload(BaseModel):
     miners keep their slot (see ``db.merge_miner_order``).
     """
 
-    order: List[str]
+    order: list[str]
 
 
 # NOTE: declared before the /api/miners/{miner_id} routes on purpose —
@@ -499,7 +507,7 @@ class DashboardLayoutPayload(BaseModel):
     ``"fleet-summary"``, ``"miner-grid"``). Purely a display preference —
     unlike the miner order it is not shared with the ESP32 panel."""
 
-    order: List[str]
+    order: list[str]
 
 
 @app.get("/api/dashboard/layout")
@@ -1448,6 +1456,7 @@ def _miner_reports_pause(miner_id: int) -> bool:
 
 class FanPayload(BaseModel):
     percent: int = Field(..., ge=0, le=100)
+    percent2: int | None = Field(default=None, ge=0, le=100)
 
 
 class FreqPayload(BaseModel):
@@ -1478,7 +1487,7 @@ async def api_set_fan(miner_id: int, payload: FanPayload) -> dict:
     miner, drv = await _resolve_driver(miner_id)
     if not drv.can_set_fan:
         raise HTTPException(400, f"family {miner['family']} does not support fan control")
-    ok = await drv.set_fan_speed(payload.percent)
+    ok = await drv.set_fan_speed(payload.percent, percent2=payload.percent2)
     if not ok:
         raise HTTPException(502, "the miner rejected the command")
     return {"ok": True}
@@ -1587,15 +1596,19 @@ class FanConfigPayload(BaseModel):
       - "minerwatch" → server-side PID that nudges the speed to keep
                        chip temp near `auto_target_c`
     """
-    fan_mode: Optional[str] = None  # 'manual' | 'firmware' | 'minerwatch'
-    auto_target_c: Optional[float] = None
-    fan_min_override: Optional[int] = None
-    fan_max_override: Optional[int] = None
-    fan_threshold_c: Optional[float] = None
+    fan_mode: str | None = None  # 'manual' | 'firmware' | 'minerwatch'
+    auto_target_c: float | None = None
+    fan_min_override: int | None = None
+    fan_max_override: int | None = None
+    fan_vr_target_c: float | None = None
+    fan_linked: int | None = None
+    fan1_source: str | None = None
+    fan2_source: str | None = None
+    fan_threshold_c: float | None = None
     # Per-miner overheat-watchdog trigger (Avalon/Canaan only). NULL → the
     # global 75°C default (auto_control.WATCHDOG_OVERHEAT_C). The fan-to-100%
     # release point trails it by a fixed 10°C, so the band scales with this.
-    watchdog_overheat_c: Optional[float] = Field(default=None, ge=60, le=95)
+    watchdog_overheat_c: float | None = Field(default=None, ge=60, le=95)
 
 
 @app.post("/api/miners/{miner_id}/control/fan_config")
@@ -1618,6 +1631,10 @@ async def api_set_fan_config(miner_id: int, payload: FanConfigPayload) -> dict:
             auto_target_c=payload.auto_target_c,
             fan_min_override=payload.fan_min_override,
             fan_max_override=payload.fan_max_override,
+            fan_vr_target_c=payload.fan_vr_target_c,
+            fan_linked=payload.fan_linked,
+            fan1_source=payload.fan1_source,
+            fan2_source=payload.fan2_source,
             fan_threshold_c=payload.fan_threshold_c,
             watchdog_overheat_c=payload.watchdog_overheat_c,
         )
@@ -1626,16 +1643,63 @@ async def api_set_fan_config(miner_id: int, payload: FanConfigPayload) -> dict:
 
     # If we just switched to "firmware", send the command to the miner
     # right away to keep state in sync. Bitaxe has set_auto_fan, Avalon
-    # uses fan-spd,-1.
-    if payload.fan_mode == "firmware":
+    # uses fan-spd,-1. We pass the target temperature so the miner's internal
+    # controller matches the target configured in MinerWatch.
+    if payload.fan_mode in ("auto", "minerwatch"):
+        from .auto_control import auto_fan
+        auto_fan.reset_miner_state(miner_id)
+    elif payload.fan_mode == "firmware":
         cfg = get_config()
         drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
         if hasattr(drv, "set_auto_fan"):
+            target_temp = (
+                payload.auto_target_c
+                or miner.get("auto_target_c")
+                or miner.get("guardian_max_chip_temp_c")
+            )
             try:
-                await drv.set_auto_fan(True)  # type: ignore[attr-defined]
+                await drv.set_auto_fan(True, target_temp_c=target_temp)  # type: ignore[attr-defined]
             except Exception:  # noqa: BLE001
                 pass
     return {"ok": True}
+
+
+# ---------- API: Logs & Governor Decisions ----------
+
+@app.get("/api/logs")
+async def api_get_logs(
+    limit: int = Query(default=200, ge=1, le=1000),
+    level: str | None = None,
+    search: str | None = None,
+) -> dict:
+    from .log_buffer import ring_buffer_handler
+    logs = ring_buffer_handler.get_logs(limit=limit, level=level, search=search)
+    return {"logs": logs}
+
+
+@app.get("/api/miners/{miner_id}/governor_decisions")
+async def api_get_governor_decisions(
+    miner_id: int,
+    governor_type: str | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    decisions = await db.get_governor_decisions(miner_id, governor_type=governor_type, limit=limit)
+    return {"decisions": decisions}
+
+
+@app.get("/api/miners/{miner_id}/governor_history")
+async def api_get_governor_history(
+    miner_id: int,
+    hours: int = Query(default=24, ge=1, le=168),
+) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    history = await db.get_governor_history(miner_id, hours=hours)
+    return {"history": history}
 
 
 # ---------- API: Donate hashrate ----------
@@ -1750,27 +1814,15 @@ async def api_purge_push_subscriptions() -> dict:
 # is documented in docs/guardian-design.md). Lives next to the auto-fan PID.
 
 class GuardianConfigPayload(BaseModel):
-    # Per-miner opt-in. When enabling without a max, the backend defaults the
-    # ceiling to the miner's current frequency (editable afterward).
-    enabled: Optional[bool] = None
-    # The "max frequency" ceiling the governor never exceeds. Editable by the
-    # expert user; defaults to the current frequency on first enable.
-    max_freq_mhz: Optional[int] = Field(default=None, ge=100, le=2000)
-    # Optional floor override; when omitted the global default is used.
-    freq_floor_mhz: Optional[int] = Field(default=None, ge=100, le=2000)
-    # Which sensor governs frequency: "vr" (default) or "chip". Validated in
-    # the endpoint so a bad value returns a clear 400.
-    temp_source: Optional[str] = None
-    # Per-miner max temperature (the high threshold); the recovery point is
-    # derived from it server-side. Wide bounds here; the chip-mode vs 75°C
-    # watchdog guard is enforced in the endpoint where the source is known.
-    max_temp_c: Optional[float] = Field(default=None, ge=40, le=110)
-    # Per-miner opt-in for the Phase 2 voltage co-tuner. Gated by the global
-    # v2_voltage_enabled master switch + the family supporting voltage control;
-    # the UI puts a confirmation in front of it.
-    voltage_enabled: Optional[bool] = None
-    # Per-miner max power limit override.
-    max_power_w: Optional[float] = Field(default=None, ge=10, le=500)
+    enabled: bool | None = None
+    max_freq_mhz: int | None = Field(default=None, ge=100, le=2000)
+    freq_floor_mhz: int | None = Field(default=None, ge=100, le=2000)
+    temp_source: str | None = None
+    max_temp_c: float | None = Field(default=None, ge=40, le=110)
+    max_vr_temp_c: float | None = Field(default=None, ge=40, le=110)
+    max_chip_temp_c: float | None = Field(default=None, ge=40, le=110)
+    voltage_enabled: bool | None = None
+    max_power_w: float | None = Field(default=None, ge=10, le=500)
 
 
 def _miner_current_freq(miner_id: int) -> int | None:
@@ -1811,8 +1863,10 @@ async def api_guardian_status(miner_id: int) -> dict:
         "miner_enabled": bool(miner.get("guardian_enabled")),
         "max_freq_mhz": miner.get("guardian_max_freq_mhz"),
         "freq_floor_mhz": miner.get("guardian_freq_floor_mhz"),
-        "temp_source": (miner.get("guardian_temp_source") or "vr"),
+        "temp_source": (miner.get("guardian_temp_source") or "both"),
         "max_temp_c": miner.get("guardian_max_temp_c"),
+        "max_vr_temp_c": miner.get("guardian_max_vr_temp_c"),
+        "max_chip_temp_c": miner.get("guardian_max_chip_temp_c"),
         "voltage_enabled": bool(miner.get("guardian_voltage_enabled")),
         "max_power_w": miner.get("guardian_max_power_w"),
         "supports_voltage": bool(caps.get("set_voltage")),
@@ -1860,9 +1914,15 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
     source = payload.temp_source
     if source is not None:
         source = source.lower()
-        if source not in ("vr", "chip"):
-            raise HTTPException(400, "temp_source must be 'vr' or 'chip'")
+        if source not in ("vr", "chip", "both"):
+            raise HTTPException(400, "temp_source must be 'vr', 'chip', or 'both'")
 
+    # Chip-mode guard: max chip temperature must be below 75°C overheat watchdog.
+    if payload.max_chip_temp_c is not None and payload.max_chip_temp_c >= 75:
+        raise HTTPException(
+            400,
+            "max ASIC chip temperature must be below the 75°C overheat watchdog — choose a lower value",
+        )
     # Chip-mode guard: the chip is already protected by the 75°C overheat
     # watchdog (auto_control.WATCHDOG_OVERHEAT_C) and held near ~60°C by the
     # fan PID. A chip max at/above the watchdog is meaningless — the hard net
@@ -1918,6 +1978,8 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
         freq_floor_mhz=payload.freq_floor_mhz,
         temp_source=source,
         max_temp_c=payload.max_temp_c,
+        max_vr_temp_c=payload.max_vr_temp_c,
+        max_chip_temp_c=payload.max_chip_temp_c,
         voltage_enabled=payload.voltage_enabled,
         max_power_w=payload.max_power_w,
     )
@@ -1931,11 +1993,11 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
 # ---------- API: discovery ----------
 
 class DiscoveryPayload(BaseModel):
-    cidr: Optional[str] = None
+    cidr: str | None = None
 
 
 @app.post("/api/discovery/scan")
-async def api_scan(payload: Optional[DiscoveryPayload] = None) -> dict:
+async def api_scan(payload: DiscoveryPayload | None = None) -> dict:
     cidr = payload.cidr if payload else None
     found = await scan_network(cidr=cidr)
     # Import into the DB
@@ -2080,7 +2142,7 @@ class SettingsPayload(BaseModel):
       ``auth.enabled``, ``auth.password``, ``storage.retention_days``.
     """
 
-    overrides: Dict[str, Any]
+    overrides: dict[str, Any]
 
 
 @app.get("/api/settings")
@@ -2248,7 +2310,7 @@ async def api_auth_logout(response: Response) -> dict:
 
 class PushSubscription(BaseModel):
     endpoint: str
-    keys: Dict[str, str]
+    keys: dict[str, str]
 
 
 @app.get("/api/push/vapid_public_key")
@@ -2409,5 +2471,5 @@ async def spa_root() -> Response:
 
 
 @app.get("/{full_path:path}", include_in_schema=False)
-async def spa_catchall(full_path: str) -> Response:  # noqa: ARG001
+async def spa_catchall(full_path: str) -> Response:
     return _react_index_response()

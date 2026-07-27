@@ -14,7 +14,9 @@ import type {
   DonationInfo,
   DonationListResponse,
   FleetHashrateResponse,
+  GovernorDecisionRecord,
   GuardianStatusResponse,
+  LogRecord,
   MetricsRangeResponse,
   MinerCreatePayload,
   MinerDetailResponse,
@@ -464,6 +466,7 @@ export function useSetAmbientSensor(minerId: number) {
 
 interface FanPayload {
   percent: number;
+  percent2?: number;
 }
 
 export function useSetFan(minerId: number) {
@@ -497,6 +500,10 @@ interface FanConfigPayload {
   auto_target_c?: number;
   fan_min_override?: number;
   fan_max_override?: number;
+  fan_vr_target_c?: number;
+  fan_linked?: number;
+  fan1_source?: string;
+  fan2_source?: string;
   fan_threshold_c?: number;
   watchdog_overheat_c?: number;
 }
@@ -637,9 +644,12 @@ interface GuardianConfigPayload {
   enabled?: boolean;
   max_freq_mhz?: number;
   freq_floor_mhz?: number;
-  temp_source?: 'vr' | 'chip';
+  temp_source?: 'vr' | 'chip' | 'both';
   max_temp_c?: number;
+  max_vr_temp_c?: number;
+  max_chip_temp_c?: number;
   voltage_enabled?: boolean;
+  max_power_w?: number;
 }
 
 export function useSetGuardianConfig(minerId: number) {
@@ -821,5 +831,47 @@ export function useInstallUpdate() {
   return useMutation({
     mutationFn: () =>
       api<UpdateInstallResponse>('/api/update/install', { method: 'POST' }),
+  });
+}
+
+export function useSystemLogs(limit = 200, level?: string, search?: string) {
+  return useQuery({
+    queryKey: ['system-logs', limit, level, search],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams();
+      params.set('limit', String(limit));
+      if (level) params.set('level', level);
+      if (search) params.set('search', search);
+      return api<{ logs: LogRecord[] }>(`/api/logs?${params.toString()}`, { signal });
+    },
+    refetchInterval: 3000,
+  });
+}
+
+export function useGovernorDecisions(minerId: number, governorType?: string, limit = 50) {
+  return useQuery({
+    queryKey: ['governor-decisions', minerId, governorType, limit],
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams();
+      if (governorType) params.set('governor_type', governorType);
+      params.set('limit', String(limit));
+      return api<{ decisions: GovernorDecisionRecord[] }>(
+        `/api/miners/${minerId}/governor_decisions?${params.toString()}`,
+        { signal }
+      );
+    },
+    refetchInterval: 5000,
+  });
+}
+
+export function useGovernorHistory(minerId: number, hours = 24) {
+  return useQuery({
+    queryKey: ['governor-history', minerId, hours],
+    queryFn: ({ signal }) =>
+      api<{ history: GovernorDecisionRecord[] }>(
+        `/api/miners/${minerId}/governor_history?hours=${hours}`,
+        { signal }
+      ),
+    refetchInterval: 10000,
   });
 }

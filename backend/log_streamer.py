@@ -55,7 +55,7 @@ import re
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Optional
+from typing import Any
 
 from . import db
 
@@ -216,7 +216,7 @@ class ShareEvent:
     share_diff: float
     pool_target: float
     submitted: bool
-    accepted: Optional[bool] = None
+    accepted: bool | None = None
     # True for events synthesized from a verdict line (forge-os v1.5+,
     # where the per-share log line is compiled out): `share_diff` is the
     # pool target, i.e. a FLOOR for the real difficulty, not the real
@@ -225,7 +225,7 @@ class ShareEvent:
     estimated: bool = False
     # rowid of the persisted Hall-of-Fame row, if this share was notable.
     # Lets us back-fill `accepted` once the stratum result line arrives.
-    _notable_rowid: Optional[int] = None
+    _notable_rowid: int | None = None
 
     def to_public(self) -> dict[str, Any]:
         return {
@@ -248,12 +248,12 @@ class MinerStream:
     port: int
     # Drives the WS path and the parse dialect (see STREAM_FAMILIES).
     family: str = ""
-    buffer: Deque[ShareEvent] = field(default_factory=lambda: deque(maxlen=RING_BUFFER))
+    buffer: deque[ShareEvent] = field(default_factory=lambda: deque(maxlen=RING_BUFFER))
     # Submitted shares awaiting their accepted/rejected verdict, oldest
     # first. Bounded so an unmatched result line can't leak memory.
-    pending: Deque[ShareEvent] = field(default_factory=lambda: deque(maxlen=64))
+    pending: deque[ShareEvent] = field(default_factory=lambda: deque(maxlen=64))
     seq: int = 0
-    current_target: Optional[float] = None
+    current_target: float | None = None
     results_total: int = 0
     submitted_total: int = 0
     accepted_total: int = 0
@@ -267,7 +267,7 @@ class MinerStream:
     synthetic_mode: bool = False
     estimated_total: int = 0
     connected: bool = False
-    last_event_ts: Optional[float] = None
+    last_event_ts: float | None = None
     started_at: float = field(default_factory=time.time)
 
     def stats(self) -> dict[str, Any]:
@@ -335,7 +335,7 @@ class LogStreamer:
         while not self._stop.is_set():
             try:
                 await self._reconcile_once()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("log-streamer reconcile error")
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=RECONCILE_INTERVAL_S)
@@ -419,7 +419,7 @@ class LogStreamer:
                 break
             except (WebSocketException, OSError, asyncio.TimeoutError) as exc:
                 log.debug("stream %s dropped: %s", url, exc)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("unexpected stream error for %s", url)
             finally:
                 stream.connected = False
@@ -554,7 +554,7 @@ class LogStreamer:
                     keep_per_miner=NOTABLE_KEEP_PER_MINER,
                 )
                 ev._notable_rowid = rowid
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("failed to persist notable share for %s", stream.miner_id)
 
         self._publish(stream.miner_id, {"type": "share", "data": ev.to_public()})
@@ -735,7 +735,7 @@ class LogStreamer:
         if diff <= 0:
             return
         now = time.time()
-        ev: Optional[ShareEvent] = None
+        ev: ShareEvent | None = None
         for cand in reversed(stream.buffer):
             if cand.estimated and cand.submitted:
                 ev = cand
@@ -762,12 +762,12 @@ class LogStreamer:
                 # (its synthetic verdict was published at creation time).
                 if ev is not None and ev.accepted is not None:
                     await db.set_notable_share_accepted(rowid, ev.accepted)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("failed to persist notable share for %s", miner_id)
 
     # ---- read helpers (used by the API) --------------------------------
 
-    def is_supported(self, family: Optional[str]) -> bool:
+    def is_supported(self, family: str | None) -> bool:
         return (family or "").lower() in STREAM_FAMILIES
 
     def recent(self, miner_id: int, limit: int = RING_BUFFER) -> list[dict[str, Any]]:
@@ -779,7 +779,7 @@ class LogStreamer:
             events = events[-limit:]
         return [e.to_public() for e in events]
 
-    def stats(self, miner_id: int) -> Optional[dict[str, Any]]:
+    def stats(self, miner_id: int) -> dict[str, Any] | None:
         stream = self._streams.get(miner_id)
         return stream.stats() if stream else None
 

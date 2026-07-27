@@ -75,6 +75,28 @@ class NerdOctaxeDriver(BitaxeDriver):
             return False
         return True
 
+    async def set_fan_speed(self, percent: int, percent2: int | None = None) -> bool:
+        """Manual fan duty for both physical fans on NerdOctaxe / NerdQAxe++."""
+        percent = max(0, min(100, int(percent)))
+        p2 = max(0, min(100, int(percent2))) if percent2 is not None else percent
+        return await self._patch_system(
+            {
+                "autofanspeed": 0,
+                "fanspeed": percent,
+                "fanspeed2": p2,
+                "manualFanSpeed": percent,
+            }
+        )
+
+    async def set_auto_fan(self, enabled: bool, target_temp_c: float | None = None) -> bool:
+        """Dual-fan auto PID mode for NerdOctaxe / NerdQAxe++ (shufps firmware)."""
+        payload: dict[str, Any] = {"autofanspeed": 2 if enabled else 0}
+        if enabled and target_temp_c is not None:
+            t = int(round(target_temp_c))
+            payload["tempTarget"] = t
+            payload["pidTargetTemp"] = t
+        return await self._patch_system(payload)
+
     def _parse(self, data: dict[str, Any]):
         # Start from the Bitaxe parser so we inherit the established
         # field mappings (hashrate, temp, accepted/rejected, best

@@ -37,8 +37,8 @@ from __future__ import annotations
 import math
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, replace
-from typing import Callable
 
 WINDOW_S = 60.0          # moving-average window for the current value
 AVAIL_S = 20.0           # data older than this -> current "unavailable" ("-")

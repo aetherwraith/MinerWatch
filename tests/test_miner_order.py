@@ -17,7 +17,7 @@ import sys
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend.db import _MINER_ORDER_MAX, merge_miner_order  # noqa: E402
+from backend.db import _MINER_ORDER_MAX, merge_miner_order
 
 
 def test_merge_plain_save() -> None:

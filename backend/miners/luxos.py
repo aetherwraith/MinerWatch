@@ -153,11 +153,14 @@ from .base import (
     FanSnapshot,
     MinerDriver,
     MinerSample,
+)
+from .base import (
     parse_cgminer_pool_entry as _parse_cgminer_pool_entry,
+)
+from .base import (
     parse_si_difficulty as _parse_si_difficulty,
 )
 from .cgminer_client import CgminerClient, CgminerError
-
 
 # Cap parallelism of per-board reads. The LuxOS API server is a small
 # cgminer-style fork that historically degrades when more than ~10

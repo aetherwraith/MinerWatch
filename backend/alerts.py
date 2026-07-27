@@ -16,21 +16,20 @@ VAPID:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
 import time
 from typing import Any
 
-import asyncio
-
 import httpx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from pywebpush import WebPushException, webpush
 
-from .config import get_config, vapid_keys_path
 from . import db
+from .config import get_config, vapid_keys_path
 from .miners.base import MinerSample
 
 log = logging.getLogger("minerwatch.alerts")

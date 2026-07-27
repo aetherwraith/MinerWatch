@@ -25,11 +25,11 @@ from unittest.mock import AsyncMock, patch
 # Make the repo root importable whether invoked via pytest or directly.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import discovery  # noqa: E402
-from backend.log_streamer import LogStreamer, MinerStream  # noqa: E402
-from backend.miners import DRIVERS, get_driver  # noqa: E402
-from backend.miners.base import MinerSample  # noqa: E402
-from backend.miners.nmaxe import NmaxeDriver  # noqa: E402
+from backend import discovery
+from backend.log_streamer import LogStreamer, MinerStream
+from backend.miners import DRIVERS, get_driver
+from backend.miners.base import MinerSample
+from backend.miners.nmaxe import NmaxeDriver
 
 
 def _nmaxe_info(**overrides):

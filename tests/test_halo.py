@@ -26,8 +26,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import halo  # noqa: E402
-from backend.halo import DEFAULT_NET_DIFF, build_halo_payload, reset_share_seq  # noqa: E402
+from backend.halo import DEFAULT_NET_DIFF, build_halo_payload, reset_share_seq
 
 
 def _sample(**overrides):

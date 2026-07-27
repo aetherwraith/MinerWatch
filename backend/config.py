@@ -8,7 +8,6 @@ Precedence order:
 """
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -309,7 +308,7 @@ class Config:
     guardian: GuardianCfg = field(default_factory=GuardianCfg)
 
     @classmethod
-    def load(cls) -> "Config":
+    def load(cls) -> Config:
         candidates = [ROOT_DIR / "config.yaml", ROOT_DIR / "config.example.yaml"]
         raw: dict[str, Any] = {}
         for path in candidates:

@@ -39,11 +39,10 @@ import re
 import shutil
 import sys
 import tarfile
-import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 
@@ -140,21 +139,21 @@ def _semver_tuple(v: str) -> tuple:
 @dataclass
 class UpdateCheckResult:
     current: str
-    latest: Optional[str]
+    latest: str | None
     available: bool
-    release_notes_url: Optional[str] = None
-    release_name: Optional[str] = None
-    published_at: Optional[str] = None
-    asset_url: Optional[str] = None
-    asset_name: Optional[str] = None
-    asset_size: Optional[int] = None
-    sha256: Optional[str] = None
+    release_notes_url: str | None = None
+    release_name: str | None = None
+    published_at: str | None = None
+    asset_url: str | None = None
+    asset_name: str | None = None
+    asset_size: int | None = None
+    sha256: str | None = None
     requires_service_reinstall: bool = False
-    error: Optional[str] = None
+    error: str | None = None
     checked_at: float = 0.0
 
 
-def _read_cache() -> Optional[Dict[str, Any]]:
+def _read_cache() -> dict[str, Any] | None:
     try:
         raw = CHECK_CACHE_FILE.read_text(encoding="utf-8")
         return json.loads(raw)
@@ -162,7 +161,7 @@ def _read_cache() -> Optional[Dict[str, Any]]:
         return None
 
 
-def _write_cache(payload: Dict[str, Any]) -> None:
+def _write_cache(payload: dict[str, Any]) -> None:
     try:
         CHECK_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
         CHECK_CACHE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -170,7 +169,7 @@ def _write_cache(payload: Dict[str, Any]) -> None:
         log.warning("Failed to write update cache: %s", exc)
 
 
-def _cache_is_fresh(payload: Dict[str, Any]) -> bool:
+def _cache_is_fresh(payload: dict[str, Any]) -> bool:
     ts = payload.get("checked_at", 0)
     return (time.time() - ts) < CACHE_TTL_SECONDS
 
@@ -179,7 +178,7 @@ def _cache_is_fresh(payload: Dict[str, Any]) -> bool:
 # GitHub API
 # ---------------------------------------------------------------------------
 
-async def _fetch_latest_release() -> Dict[str, Any]:
+async def _fetch_latest_release() -> dict[str, Any]:
     """Hit GitHub Releases API for the latest release of the upstream repo.
 
     Returns the parsed JSON body on success. Raises ``httpx.HTTPError``
@@ -208,7 +207,7 @@ async def _fetch_latest_release() -> Dict[str, Any]:
     return resp.json()
 
 
-def _pick_asset(release: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _pick_asset(release: dict[str, Any]) -> dict[str, Any] | None:
     """Find the tarball asset attached to a Release.
 
     The release workflow uploads a single ``minerwatch-<version>.tar.gz``
@@ -224,7 +223,7 @@ def _pick_asset(release: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def _fetch_sha256(release: Dict[str, Any], asset_name: str) -> Optional[str]:
+async def _fetch_sha256(release: dict[str, Any], asset_name: str) -> str | None:
     """Download ``checksums.txt`` from the release assets, look up asset_name."""
     assets = release.get("assets") or []
     checksums_asset = next((a for a in assets if a.get("name") == "checksums.txt"), None)
@@ -338,7 +337,7 @@ def _log_to_file(line: str) -> None:
         pass
 
 
-async def _download(url: str, dest: Path, expected_size: Optional[int]) -> None:
+async def _download(url: str, dest: Path, expected_size: int | None) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
         async with client.stream("GET", url) as resp:
@@ -458,7 +457,7 @@ async def _install_requirements(reqs_file: Path) -> bool:
         return False
 
 
-async def install_update() -> Dict[str, Any]:
+async def install_update() -> dict[str, Any]:
     """Full install flow. Raises :class:`UpdateError` on any step.
 
     On success, returns a dict with the new version and schedules a process
@@ -583,7 +582,7 @@ async def _delayed_restart(delay_seconds: float = 1.5) -> None:
 # System info (used by the Update page to show OS context)
 # ---------------------------------------------------------------------------
 
-def system_summary() -> Dict[str, str]:
+def system_summary() -> dict[str, str]:
     return {
         "os": platform.system(),  # Darwin | Linux | Windows
         "os_release": platform.release(),

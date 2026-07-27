@@ -22,8 +22,8 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from backend import alerts, db  # noqa: E402
-from backend.miners.base import MinerSample  # noqa: E402
+from backend import alerts, db
+from backend.miners.base import MinerSample
 
 _TMP = tempfile.TemporaryDirectory(prefix="mw-test-mute-")
 

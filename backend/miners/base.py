@@ -233,6 +233,8 @@ class MinerSample:
     # doesn't populate them.
     fan_rpm_2: int | None = None
     fan_pct_2: float | None = None
+    # Firmware auto-fan status (AxeOS `autofanspeed` integer: 0=manual, 1=auto, 2=dual-auto)
+    autofanspeed: int | None = None
 
     # ASIC
     frequency_mhz: float | None = None
@@ -583,7 +585,7 @@ class PoolConfig:
         )
 
     @classmethod
-    def from_json(cls, raw: str) -> "PoolConfig":
+    def from_json(cls, raw: str) -> PoolConfig:
         # Snapshots persisted before the TLS fields existed simply lack
         # the keys → .get() yields None → "don't touch" on restore.
         data = json.loads(raw) if raw else {}
@@ -645,8 +647,8 @@ class MinerDriver:
     async def poll(self) -> MinerSample:
         raise NotImplementedError
 
-    async def set_fan_speed(self, percent: int) -> bool:  # noqa: D401
-        """Set fan speed as a percentage (0-100)."""
+    async def set_fan_speed(self, percent: int, percent2: int | None = None) -> bool:
+        """Set fan speed as a percentage (0-100). Supports optional percent2 for multi-fan miners."""
         raise NotImplementedError
 
     async def set_frequency(self, mhz: int) -> bool:
@@ -684,7 +686,7 @@ class MinerDriver:
         """
         raise NotImplementedError
 
-    async def read_pool_config(self) -> "PoolConfig | None":
+    async def read_pool_config(self) -> PoolConfig | None:
         """Capture the current pool config so it can be restored later.
 
         Returns ``None`` (or raises) if the driver can't read it. Drivers
@@ -693,7 +695,7 @@ class MinerDriver:
         """
         raise NotImplementedError
 
-    async def set_pool(self, config: "PoolConfig") -> bool:
+    async def set_pool(self, config: PoolConfig) -> bool:
         """Repoint the miner at ``config``. Returns True if the command
         was accepted by the miner.
 
@@ -704,7 +706,7 @@ class MinerDriver:
         """
         raise NotImplementedError
 
-    async def active_slot(self) -> "str | None":
+    async def active_slot(self) -> str | None:
         """Return which configured pool slot the miner is *currently*
         mining on: ``"primary"``, ``"fallback"``, or ``None`` when the
         driver can't tell (the default).

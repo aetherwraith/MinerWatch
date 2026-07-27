@@ -18,10 +18,10 @@ import asyncio
 import ipaddress
 import logging
 import socket
-from typing import Iterable
+from collections.abc import Iterable
 
-from .config import get_config
 from . import db
+from .config import get_config
 from .miners import BitaxeDriver, BraiinsDriver, CanaanDriver, LuxosDriver, NmaxeDriver
 from .miners.cgminer_client import CgminerClient, CgminerError
 
