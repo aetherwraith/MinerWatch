@@ -1567,32 +1567,21 @@ async def api_shutdown(miner_id: int) -> dict:
     return {"ok": True}
 
 
-class FanConfigPayload(BaseModel):
-    """Per-miner fan control configuration.
-
-    fan_mode:
-      - "manual"     → user sets a fixed percentage (`POST /control/fan`)
-      - "firmware"   → delegate to the miner's firmware (Avalon `-1`, Bitaxe `autofanspeed=1`)
-      - "minerwatch" → server-side PID that nudges the speed to keep
-                       chip temp near `auto_target_c`
-    """
+class SetFanConfigPayload(BaseModel):
     fan_mode: str | None = None  # 'manual' | 'firmware' | 'minerwatch'
-    auto_target_c: float | None = None
-    fan_min_override: int | None = None
-    fan_max_override: int | None = None
-    fan_vr_target_c: float | None = None
-    fan_linked: int | None = None
+    auto_target_c: float | None = Field(default=None, ge=30, le=95)
+    fan_min_override: int | None = Field(default=None, ge=0, le=100)
+    fan_max_override: int | None = Field(default=None, ge=0, le=100)
+    fan_vr_target_c: float | None = Field(default=None, ge=30, le=110)
+    fan_linked: int | None = Field(default=None, ge=0, le=1)
     fan1_source: str | None = None
     fan2_source: str | None = None
-    fan_threshold_c: float | None = None
-    # Per-miner overheat-watchdog trigger (Avalon/Canaan only). NULL → the
-    # global 75°C default (auto_control.WATCHDOG_OVERHEAT_C). The fan-to-100%
-    # release point trails it by a fixed 10°C, so the band scales with this.
+    fan_threshold_c: float | None = Field(default=None, ge=30, le=110)
     watchdog_overheat_c: float | None = Field(default=None, ge=60, le=95)
 
 
 @app.post("/api/miners/{miner_id}/control/fan_config")
-async def api_set_fan_config(miner_id: int, payload: FanConfigPayload) -> dict:
+async def api_set_fan_config(miner_id: int, payload: SetFanConfigPayload) -> dict:
     miner = await db.get_miner(miner_id)
     if not miner:
         raise HTTPException(404, "miner not found")
@@ -1800,7 +1789,7 @@ class GuardianConfigPayload(BaseModel):
     temp_source: str | None = None
     max_temp_c: float | None = Field(default=None, ge=40, le=110)
     max_vr_temp_c: float | None = Field(default=None, ge=40, le=110)
-    max_chip_temp_c: float | None = Field(default=None, ge=40, le=110)
+    max_chip_temp_c: float | None = Field(default=None, ge=40, le=74)
     voltage_enabled: bool | None = None
     max_power_w: float | None = Field(default=None, ge=10, le=500)
 

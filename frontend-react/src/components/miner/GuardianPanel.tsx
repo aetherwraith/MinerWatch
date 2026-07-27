@@ -263,9 +263,9 @@ export function GuardianPanel({ data }: Props) {
             />
             <Button
               variant="subtle"
-              disabled={pending || maxVrTemp === ''}
+              disabled={pending || maxVrTemp === '' || typeof maxVrTemp !== 'number' || maxVrTemp < 40 || maxVrTemp > 110}
               onClick={() =>
-                typeof maxVrTemp === 'number' &&
+                typeof maxVrTemp === 'number' && maxVrTemp >= 40 && maxVrTemp <= 110 &&
                 run({ max_vr_temp_c: maxVrTemp }, `VR max temperature set to ${maxVrTemp}°C`)
               }
             >
@@ -275,6 +275,11 @@ export function GuardianPanel({ data }: Props) {
               Hold setting down to ~{vrLowC}°C
             </span>
           </div>
+          {typeof maxVrTemp === 'number' && (maxVrTemp < 40 || maxVrTemp > 110) && (
+            <p className="text-xs text-destructive">
+              VR max temperature must be between 40°C and 110°C.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             The VR threshold above which it cuts frequency; holds down to {vrLowC}°C.
             Default: {d.vr_high_c}°C.
@@ -302,9 +307,9 @@ export function GuardianPanel({ data }: Props) {
             />
             <Button
               variant="subtle"
-              disabled={pending || maxChipTemp === ''}
+              disabled={pending || maxChipTemp === '' || typeof maxChipTemp !== 'number' || maxChipTemp < 40 || maxChipTemp >= 75}
               onClick={() =>
-                typeof maxChipTemp === 'number' &&
+                typeof maxChipTemp === 'number' && maxChipTemp >= 40 && maxChipTemp < 75 &&
                 run({ max_chip_temp_c: maxChipTemp }, `ASIC chip max temperature set to ${maxChipTemp}°C`)
               }
             >
@@ -314,6 +319,11 @@ export function GuardianPanel({ data }: Props) {
               Hold setting down to ~{chipLowC}°C
             </span>
           </div>
+          {typeof maxChipTemp === 'number' && (maxChipTemp < 40 || maxChipTemp >= 75) && (
+            <p className="text-xs text-destructive">
+              ASIC chip max temperature must be between 40°C and 74°C (below the 75°C overheat watchdog).
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             The ASIC chip threshold above which it cuts frequency; holds down to {chipLowC}°C.
             Default: {d.chip_high_c}°C. Keep it below the 75°C overheat watchdog.

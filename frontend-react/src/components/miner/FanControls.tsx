@@ -141,8 +141,8 @@ export function FanControls({ data }: Props) {
   async function saveTarget() {
     setFeedback(null);
     setError(null);
-    if (Number.isNaN(target)) {
-      setError('Invalid target.');
+    if (Number.isNaN(target) || target < 30 || target > 95) {
+      setError('Invalid ASIC target temperature (30–95°C).');
       return;
     }
     try {
