@@ -66,13 +66,16 @@ export function GuardianPanel({ data }: Props) {
         ? s.defaults.chip_high_c
         : s.defaults.vr_high_c;
     setMaxTemp(s.max_temp_c ?? defHigh ?? '');
-    setMaxPower(s.max_power_w ?? '');
+    const defPower = s.miner_max_power_w ?? s.defaults.power_cutoff_w;
+    setMaxPower(s.max_power_w ?? defPower ?? '');
   }, [
     s?.max_freq_mhz,
     s?.current_freq_mhz,
     s?.temp_source,
     s?.max_temp_c,
     s?.max_power_w,
+    s?.miner_max_power_w,
+    s?.defaults.power_cutoff_w,
   ]);
 
   if (!capabilities.set_frequency) {

@@ -130,8 +130,7 @@ def decide_frequency(
     into instability.
     """
     # Defensive: a mis-set floor above the ceiling must not brick the loop.
-    if floor_mhz > ceiling_mhz:
-        floor_mhz = ceiling_mhz
+    floor_mhz = min(floor_mhz, ceiling_mhz)
 
     # 0. Enforce the per-miner ceiling/floor first, regardless of sensors.
     #    The ceiling is the user's "max frequency": never run above it (e.g.
@@ -240,10 +239,8 @@ def decide_point(
     Returns the current point with a "hold" reason when nothing should change.
     """
     f, v = int(current_freq), int(current_volt)
-    if floor_mhz > ceiling_mhz:
-        floor_mhz = ceiling_mhz
-    if volt_floor_mv > volt_ceiling_mv:
-        volt_floor_mv = volt_ceiling_mv
+    floor_mhz = min(floor_mhz, ceiling_mhz)
+    volt_floor_mv = min(volt_floor_mv, volt_ceiling_mv)
 
     # 0. Enforce the envelope first.
     if f > ceiling_mhz:
@@ -311,17 +308,17 @@ class _GuardianState:
     """Mutable per-miner state the loop carries between ticks."""
 
     __slots__ = (
-        "prev_accepted",
-        "prev_rejected",
-        "last_commanded_freq",
         "last_change_ts",
-        "last_reason",
-        "last_ts",
-        "last_temp_c",
-        "last_reject_pct",
-        "soft_ceiling",
-        "prev_hw_errors",
+        "last_commanded_freq",
         "last_hashrate",
+        "last_reason",
+        "last_reject_pct",
+        "last_temp_c",
+        "last_ts",
+        "prev_accepted",
+        "prev_hw_errors",
+        "prev_rejected",
+        "soft_ceiling",
     )
 
     def __init__(self) -> None:
@@ -449,7 +446,7 @@ class GuardianController:
             try:
                 if get_config().guardian.enabled:
                     await self._tick(_poller.last_results)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("guardian tick error")
             # Re-read the interval each loop so a settings change takes effect
             # without a restart.
@@ -488,7 +485,7 @@ class GuardianController:
             seen.add(miner_id)
             try:
                 await self._govern_one(miner, sample, gcfg, cfg)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 log.exception("guardian: miner=%s govern error", miner.get("name"))
 
         # Drop state for miners no longer governed/online so a returning miner
@@ -575,11 +572,11 @@ class GuardianController:
             err_delta = hw_errors - state.prev_hw_errors
         if hw_errors is not None:
             state.prev_hw_errors = hw_errors
-        tele = dict(
-            hashrate_ths=hashrate_ths,
-            asic_errors=hw_errors,
-            asic_error_delta=err_delta,
-        )
+        tele = {
+            "hashrate_ths": hashrate_ths,
+            "asic_errors": hw_errors,
+            "asic_error_delta": err_delta,
+        }
 
         # Always record the latest reading for the status endpoint, even if we
         # can't act this tick.
