@@ -97,14 +97,21 @@ def _first_sentence(detail: str) -> str:
 
 
 def get_whatsnew() -> dict[str, Any]:
-    """Highlights for the running version, cached per version."""
+    """Highlights for the running version, cached per version and CHANGELOG.md mtime."""
     global _cache
     version = updater.read_version()
-    if _cache is not None and _cache[0] == version:
-        return {"version": version, "highlights": _cache[1]}
+    changelog_path = ROOT_DIR / "CHANGELOG.md"
+    mtime = 0.0
+    try:
+        mtime = changelog_path.stat().st_mtime
+    except OSError:
+        pass
+
+    if _cache is not None and _cache[0] == version and _cache[1] == mtime:
+        return {"version": version, "highlights": _cache[2]}
 
     try:
-        text = (ROOT_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+        text = changelog_path.read_text(encoding="utf-8")
     except OSError:
         text = ""
 
@@ -112,5 +119,5 @@ def get_whatsnew() -> dict[str, Any]:
     if not highlights:
         highlights = [dict(_FALLBACK)]
 
-    _cache = (version, highlights)
+    _cache = (version, mtime, highlights)
     return {"version": version, "highlights": highlights}
