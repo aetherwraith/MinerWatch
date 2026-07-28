@@ -716,6 +716,7 @@ export interface GuardianStatusResponse {
   autofan_vr_temp_c: number | null;
   autofan_chip_temp_c: number | null;
   max_power_w: number | null;   // per-miner max power override
+  effective_power_w: number;    // active effective power limit
   fan_max_pct: number | null;   // max fan speed pinned during frequency tuning
   miner_max_power_w: number | null; // telemetry-reported max power
   voltage_enabled: boolean;     // per-miner opt-in for the voltage co-tuner (Phase 2)

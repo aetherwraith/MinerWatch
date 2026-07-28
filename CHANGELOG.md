@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.21] — 2026-07-28
+
+### Fixed
+
+- **Pre-filled Max Power input field.** Max Power (W) field in the Guardian UI is now automatically populated with the active default/effective power limit (e.g. 40 W) when no per-miner override is set, eliminating blank empty input boxes.
+
 ## [1.30.20] — 2026-07-28
 
 ### Added

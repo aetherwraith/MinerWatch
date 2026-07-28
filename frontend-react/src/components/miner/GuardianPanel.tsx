@@ -60,7 +60,7 @@ export function GuardianPanel({ data }: Props) {
     setMaxFreq(s.max_freq_mhz ?? s.current_freq_mhz ?? '');
     setMaxVrTemp(s.max_vr_temp_c ?? '');
     setMaxChipTemp(s.max_chip_temp_c ?? '');
-    setMaxPower(s.max_power_w ?? '');
+    setMaxPower(s.max_power_w ?? s.effective_power_w ?? s.defaults.power_cutoff_w ?? 40);
     setFanMaxPct(s.fan_max_pct ?? 100);
   }, [
     s?.max_freq_mhz,
@@ -68,6 +68,8 @@ export function GuardianPanel({ data }: Props) {
     s?.max_vr_temp_c,
     s?.max_chip_temp_c,
     s?.max_power_w,
+    s?.effective_power_w,
+    s?.defaults?.power_cutoff_w,
     s?.fan_max_pct,
   ]);
 

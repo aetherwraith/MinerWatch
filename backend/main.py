@@ -1872,6 +1872,7 @@ async def api_guardian_status(miner_id: int) -> dict:
         "autofan_chip_temp_c": autofan_chip_target,
         "voltage_enabled": bool(miner.get("guardian_voltage_enabled")),
         "max_power_w": miner.get("guardian_max_power_w"),
+        "effective_power_w": float(miner.get("guardian_max_power_w") or g.power_cutoff_w or 40),
         "fan_max_pct": (miner.get("fan_max_override") or 100),
         "supports_voltage": bool(caps.get("set_voltage")),
         "voltage_master": g.v2_voltage_enabled,
