@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.30.8] — 2026-07-28
+## [1.30.9] — 2026-07-28
 
 ### Added
 
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Enhanced dark mode contrast for radio buttons and switches.** Unchecked radio buttons and switches now feature distinct borders and bright slate thumbs so they remain clearly visible against dark card backgrounds.
 - **Improved temperature comparison precision.** Temperature threshold evaluations use 1-decimal rounding to prevent floating-point noise from triggering false step-down actions.
 - **Immediate fan takeover on enable.** Disabling and re-enabling Guardian immediately triggers fan pinning and evaluation without waiting for periodic interval ticks.
 

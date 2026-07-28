@@ -126,4 +126,10 @@
   .num {
     font-variant-numeric: tabular-nums;
   }
+
+  /* Enhanced contrast for native radio buttons and checkboxes in dark mode */
+  input[type='radio'],
+  input[type='checkbox'] {
+    @apply accent-primary border-slate-400 dark:border-slate-500 bg-background dark:bg-slate-800 text-primary cursor-pointer focus:ring-1 focus:ring-primary focus:ring-offset-background;
+  }
 }
