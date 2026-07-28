@@ -781,12 +781,33 @@ class GuardianController:
                     )
                 changed = tf != int(current_freq) or tv != cur_v
                 if not changed:
+                    state.consecutive_holds += 1
+                    if state.consecutive_holds >= 3:
+                        state.is_tuning = False
                     self._publish(miner_id, miner, current_freq, temp_c, reject_pct,
                                   vreason, changed=False, ceiling=eff_ceiling,
                                   floor=floor, source=source,
                                   vr_temp_c=temp_vr_c, chip_temp_c=temp_chip_c,
                                   soft_ceiling=state.soft_ceiling, **tele)
+                    try:
+                        await db.insert_governor_decision(
+                            miner_id=miner_id,
+                            governor_type="guardian",
+                            action_taken="HOLD",
+                            reason=vreason,
+                            chip_temp=temp_chip_c,
+                            vr_temp=temp_vr_c,
+                            target_chip_temp=chip_high,
+                            target_vr_temp=vr_high,
+                            details={"freq": int(current_freq), "voltage": cur_v, "consecutive_holds": state.consecutive_holds, "is_tuning": state.is_tuning},
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
                     return
+
+                state.consecutive_holds = 0
+                state.is_tuning = True
+
                 cooldown = int(gcfg.cooldown_seconds or 0)
                 if cooldown > 0 and (now - state.last_change_ts) < cooldown:
                     self._publish(miner_id, miner, current_freq, temp_c, reject_pct,
@@ -794,6 +815,20 @@ class GuardianController:
                                   ceiling=eff_ceiling, floor=floor, source=source,
                                   vr_temp_c=temp_vr_c, chip_temp_c=temp_chip_c,
                                   soft_ceiling=state.soft_ceiling, **tele)
+                    try:
+                        await db.insert_governor_decision(
+                            miner_id=miner_id,
+                            governor_type="guardian",
+                            action_taken="COOLDOWN",
+                            reason=f"cooldown ({vreason})",
+                            chip_temp=temp_chip_c,
+                            vr_temp=temp_vr_c,
+                            target_chip_temp=chip_high,
+                            target_vr_temp=vr_high,
+                            details={"freq": int(current_freq), "voltage": cur_v},
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
                     return
                 ok = True
                 try:
