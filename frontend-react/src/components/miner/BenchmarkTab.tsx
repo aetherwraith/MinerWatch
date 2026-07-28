@@ -48,7 +48,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const [maxVolt, setMaxVolt] = useState<number>(1300);
   const [voltStep, setVoltStep] = useState<number>(25);
   const [dwellTime, setDwellTime] = useState<number>(30);
-  const [maxErrorRate, setMaxErrorRate] = useState<number>(5.0);
+  const [maxErrorRate, setMaxErrorRate] = useState<number>(1.1);
   const [pinFanEnabled, setPinFanEnabled] = useState<boolean>(false);
   const [pinFanPct, setPinFanPct] = useState<number>(85);
 

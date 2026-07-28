@@ -108,14 +108,22 @@ async def _get_latest_metrics(miner_id: int) -> dict[str, Any]:
     sample = poller.last_results.get(miner_id)
     if not sample:
         return {}
+    rej = float(getattr(sample, "rejected", 0) or 0)
+    acc = float(getattr(sample, "accepted", 0) or 0)
+    tot = rej + acc
+    reject_pct = (rej / tot * 100.0) if tot > 0 else 0.0
+    hw_err_pct = float(getattr(sample, "error_pct", 0) or 0.0)
+
     return {
         "hashrate_ths": getattr(sample, "hashrate_ths", None),
         "power_w": getattr(sample, "power_w", None),
         "temp_chip_c": getattr(sample, "temp_chip_c", None),
         "temp_vr_c": getattr(sample, "temp_vr_c", None),
         "fan_pct": getattr(sample, "fan_pct", None),
-        "rejected": getattr(sample, "rejected", 0),
-        "accepted": getattr(sample, "accepted", 0),
+        "rejected": rej,
+        "accepted": acc,
+        "reject_pct": reject_pct,
+        "error_pct": hw_err_pct,
     }
 
 
@@ -135,16 +143,25 @@ async def _run_benchmark_sweep(
 
     # Record baseline settled settings
     orig_freq = miner.get("guardian_max_freq_mhz") or 500
+    orig_guardian_enabled = bool(miner.get("guardian_enabled"))
     orig_fan_mode = miner.get("fan_mode")
-    orig_fan_override = miner.get("fan_min_override")
 
     pin_fan_pct = config.get("pin_fan_pct")
     dwell_time_s = max(5, config.get("dwell_time_s", 30))
-    max_error_rate_pct = float(config.get("max_error_rate_pct", 5.0))
+    # Default error rate threshold set to Guardian's 1.1% threshold
+    max_error_rate_pct = float(config.get("max_error_rate_pct", 1.1))
 
     # Thermal safety cutoffs (default 70°C chip / 85°C VR or miner Guardian caps)
     max_chip_temp = float(miner.get("guardian_max_chip_temp_c") or miner.get("guardian_max_temp_c") or 68.0)
     max_vr_temp = float(miner.get("guardian_max_vr_temp_c") or 82.0)
+
+    # Disable Guardian governor while benchmarking to prevent interference
+    if orig_guardian_enabled:
+        try:
+            await db.update_miner(miner_id, guardian_enabled=False)
+            logger.info("Disabled Guardian governor on miner #%d for duration of benchmark", miner_id)
+        except Exception as e:
+            logger.warning("Failed to temporarily disable Guardian on miner #%d: %s", miner_id, e)
 
     # If pin_fan_pct is specified, temporarily pin miner fan
     if pin_fan_pct is not None:
@@ -173,7 +190,7 @@ async def _run_benchmark_sweep(
             # Dwell time loop with safety net checking every second
             dwell_aborted = False
             abort_reason = None
-            sample_metrics: dict[str, Any] = {}
+            dwell_samples: list[dict[str, Any]] = []
 
             for second in range(dwell_time_s):
                 if _abort_flags.get(miner_id):
@@ -185,6 +202,7 @@ async def _run_benchmark_sweep(
                 # Fetch live metric sample
                 latest = await _get_latest_metrics(miner_id)
                 if latest:
+                    dwell_samples.append(latest)
                     chip_temp = latest.get("temp_chip_c")
                     vr_temp = latest.get("temp_vr_c")
 
@@ -195,36 +213,40 @@ async def _run_benchmark_sweep(
                         logger.warning("Safety net triggered on benchmark #%d miner #%d: %s", benchmark_id, miner_id, abort_reason)
                         break
 
-                    # Collect metrics near end of dwell window
-                    if second >= dwell_time_s - 5:
-                        sample_metrics = latest
-
             if _abort_flags.get(miner_id):
                 await db.update_miner_benchmark(benchmark_id, status="aborted", current_step=idx + 1)
                 break
 
-            # Evaluate point metrics & stability
-            hr = float(sample_metrics.get("hashrate_ths") or 0.0)
-            power = float(sample_metrics.get("power_w") or 0.0)
-            chip_t = sample_metrics.get("temp_chip_c")
-            vr_t = sample_metrics.get("temp_vr_c")
-            rej = float(sample_metrics.get("rejected") or 0.0)
-            acc = float(sample_metrics.get("accepted") or 0.0)
-            tot_shares = rej + acc
-            err_rate = (rej / tot_shares * 100.0) if tot_shares > 0 else 0.0
+            # Calculate settled averages over the last third of the dwell period (min 5 seconds)
+            window_size = max(5, dwell_time_s // 3)
+            window_samples = dwell_samples[-window_size:] if dwell_samples else []
+
+            def _avg(key: str) -> float | None:
+                vals = [s[key] for s in window_samples if s.get(key) is not None]
+                return (sum(vals) / len(vals)) if vals else None
+
+            hr = _avg("hashrate_ths") or 0.0
+            power = _avg("power_w") or 0.0
+            chip_t = _avg("temp_chip_c")
+            vr_t = _avg("temp_vr_c")
+            hw_err = _avg("error_pct") or 0.0
+            rej_pct = _avg("reject_pct") or 0.0
+
+            # Combine chip hardware error rate and pool share rejection rate
+            effective_err_rate = max(hw_err, rej_pct)
 
             j_th = (power / hr) if (hr > 0 and power > 0) else None
-            is_stable = not dwell_aborted and err_rate <= max_error_rate_pct and hr > 0
+            is_stable = not dwell_aborted and effective_err_rate <= max_error_rate_pct and hr > 0
 
             sample_record = {
                 "freq_mhz": freq,
                 "voltage_mv": volt,
-                "hashrate_ths": hr if hr > 0 else None,
-                "power_w": power if power > 0 else None,
-                "efficiency_j_th": j_th,
-                "chip_temp_c": chip_t,
-                "vr_temp_c": vr_t,
-                "error_rate_pct": err_rate,
+                "hashrate_ths": round(hr, 3) if hr > 0 else None,
+                "power_w": round(power, 1) if power > 0 else None,
+                "efficiency_j_th": round(j_th, 2) if j_th is not None else None,
+                "chip_temp_c": round(chip_t, 1) if chip_t is not None else None,
+                "vr_temp_c": round(vr_t, 1) if vr_t is not None else None,
+                "error_rate_pct": round(effective_err_rate, 2),
                 "stable": is_stable,
                 "abort_reason": abort_reason if not is_stable else None,
             }
@@ -269,6 +291,14 @@ async def _run_benchmark_sweep(
         # Cleanup & restore baseline state
         _running_benchmarks.pop(miner_id, None)
         _abort_flags.pop(miner_id, None)
+
+        # Restore Guardian governor state if it was enabled prior to benchmark
+        if orig_guardian_enabled:
+            try:
+                await db.update_miner(miner_id, guardian_enabled=True)
+                logger.info("Restored Guardian governor state on miner #%d", miner_id)
+            except Exception as e:
+                logger.warning("Failed restoring Guardian state for miner #%d: %s", miner_id, e)
 
         # Restore original frequency / settings
         try:

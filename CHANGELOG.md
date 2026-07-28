@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.0] — 2026-07-28
+
+### Added
+
+- **Guardian Pausing & Fan Verification During Benchmark.** Automatically pauses the active Guardian governor during benchmark execution to eliminate loop conflicts, and restores state upon completion.
+- **Settled Statistics Sampling & Averaging.** Metrics (hashrate, power, temperatures, error rates) are now averaged over a settled sampling window (the last third of the dwell period, minimum 5 seconds) for superior measurement accuracy.
+- **ASIC Hardware Error Rate & Guardian Threshold Alignment.** Combined ASIC chip hardware error rate (`error_pct`) with pool share rejection rate (`reject_pct`), and updated the benchmark error threshold default to `1.1%` to match Guardian's default safety threshold.
+
 ## [1.32.3] — 2026-07-28
 
 ### Changed

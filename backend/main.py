@@ -1808,7 +1808,7 @@ class BenchmarkStartPayload(BaseModel):
     max_voltage_mv: int = Field(ge=900, le=1500, default=1300)
     voltage_step_mv: int = Field(ge=5, le=200, default=25)
     dwell_time_s: int = Field(ge=5, le=600, default=30)
-    max_error_rate_pct: float = Field(ge=0.0, le=50.0, default=5.0)
+    max_error_rate_pct: float = Field(ge=0.0, le=50.0, default=1.1)
     pin_fan_pct: int | None = Field(default=None, ge=10, le=100)
 
 
@@ -2073,7 +2073,7 @@ async def api_benchmark_status(miner_id: int) -> dict:
         "max_voltage_mv": 1300,
         "voltage_step_mv": 25,
         "dwell_time_s": 30,
-        "max_error_rate_pct": 5.0,
+        "max_error_rate_pct": 1.1,
         "current_freq_mhz": curr_freq,
     }
 
