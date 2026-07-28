@@ -58,8 +58,8 @@ export function GuardianPanel({ data }: Props) {
   useEffect(() => {
     if (!s) return;
     setMaxFreq(s.max_freq_mhz ?? s.current_freq_mhz ?? '');
-    setMaxVrTemp(s.max_vr_temp_c ?? s.defaults.vr_high_c ?? '');
-    setMaxChipTemp(s.max_chip_temp_c ?? s.defaults.chip_high_c ?? '');
+    setMaxVrTemp(s.max_vr_temp_c ?? '');
+    setMaxChipTemp(s.max_chip_temp_c ?? '');
     setMaxPower(s.max_power_w ?? '');
     setFanMaxPct(s.fan_max_pct ?? 100);
   }, [
@@ -249,11 +249,9 @@ export function GuardianPanel({ data }: Props) {
         </div>
 
         {/* VR Max temperature */}
-        <div className="space-y-2 border-t border-border pt-4">
+        <div className="space-y-3 border-t border-border pt-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="guardian-maxvrtemp" className="text-sm">
-              VR Max temperature (°C)
-            </Label>
+            <Label className="text-sm font-medium">VR Temperature Target (°C)</Label>
             <Badge variant={s.vr_temp_source === 'custom' ? 'default' : 'secondary'} className="text-xs">
               {s.vr_temp_source === 'custom'
                 ? `Custom Guardian Override (${s.effective_vr_temp_c}°C)`
@@ -262,63 +260,77 @@ export function GuardianPanel({ data }: Props) {
                 : `Global Default (${s.effective_vr_temp_c}°C)`}
             </Badge>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap">
-            <Input
-              id="guardian-maxvrtemp"
-              type="number"
-              min={40}
-              max={110}
-              step={1}
-              value={maxVrTemp}
-              onChange={(e) =>
-                setMaxVrTemp(e.target.value === '' ? '' : Number(e.target.value))
-              }
-              disabled={pending}
-              className="max-w-[100px]"
-            />
             <Button
-              variant="subtle"
-              disabled={pending || maxVrTemp === '' || typeof maxVrTemp !== 'number' || maxVrTemp < 40 || maxVrTemp > 110}
-              onClick={() =>
-                typeof maxVrTemp === 'number' && maxVrTemp >= 40 && maxVrTemp <= 110 &&
-                run({ max_vr_temp_c: maxVrTemp }, `VR max temperature set to ${maxVrTemp}°C`)
-              }
+              variant={s.vr_temp_source !== 'custom' ? 'default' : 'outline'}
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setMaxVrTemp('');
+                void run({ clear_vr_temp: true }, 'VR target set to inherit from Auto-Fan');
+              }}
             >
-              Save VR override
+              Use Auto-Fan target ({s.autofan_vr_temp_c ?? d.vr_high_c}°C)
             </Button>
-            {s.vr_temp_source === 'custom' && (
-              <Button
-                variant="outline"
-                disabled={pending}
-                onClick={() => {
-                  setMaxVrTemp('');
-                  void run({ clear_vr_temp: true }, 'Cleared VR override — inheriting Auto-Fan target');
-                }}
-              >
-                Use Auto-Fan target
-              </Button>
-            )}
-            <span className="text-xs text-muted-foreground">
-              Hold setting down to ~{vrLowC}°C
-            </span>
+            <Button
+              variant={s.vr_temp_source === 'custom' ? 'default' : 'outline'}
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                if (typeof maxVrTemp !== 'number') setMaxVrTemp(s.effective_vr_temp_c);
+              }}
+            >
+              Set Custom Override
+            </Button>
           </div>
+
+          {(s.vr_temp_source === 'custom' || typeof maxVrTemp === 'number') && (
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              <Input
+                id="guardian-maxvrtemp"
+                type="number"
+                min={40}
+                max={110}
+                step={1}
+                value={maxVrTemp}
+                placeholder={`${s.effective_vr_temp_c}`}
+                onChange={(e) =>
+                  setMaxVrTemp(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                disabled={pending}
+                className="max-w-[100px]"
+              />
+              <Button
+                variant="subtle"
+                disabled={pending || maxVrTemp === '' || typeof maxVrTemp !== 'number' || maxVrTemp < 40 || maxVrTemp > 110}
+                onClick={() =>
+                  typeof maxVrTemp === 'number' && maxVrTemp >= 40 && maxVrTemp <= 110 &&
+                  run({ max_vr_temp_c: maxVrTemp }, `VR custom override set to ${maxVrTemp}°C`)
+                }
+              >
+                Save VR override
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Hold setting down to ~{vrLowC}°C
+              </span>
+            </div>
+          )}
           {typeof maxVrTemp === 'number' && (maxVrTemp < 40 || maxVrTemp > 110) && (
             <p className="text-xs text-destructive">
               VR max temperature must be between 40°C and 110°C.
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            The VR threshold above which it cuts frequency; holds down to {vrLowC}°C.
+            The VR threshold above which frequency steps down; holds down to ~{vrLowC}°C.
             Active target: {s.effective_vr_temp_c}°C ({s.vr_temp_source}).
           </p>
         </div>
 
         {/* ASIC Chip Max temperature */}
-        <div className="space-y-2 border-t border-border pt-4">
+        <div className="space-y-3 border-t border-border pt-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="guardian-maxchiptemp" className="text-sm">
-              ASIC Chip Max temperature (°C)
-            </Label>
+            <Label className="text-sm font-medium">ASIC Chip Temperature Target (°C)</Label>
             <Badge variant={s.chip_temp_source === 'custom' ? 'default' : 'secondary'} className="text-xs">
               {s.chip_temp_source === 'custom'
                 ? `Custom Guardian Override (${s.effective_chip_temp_c}°C)`
@@ -327,54 +339,70 @@ export function GuardianPanel({ data }: Props) {
                 : `Global Default (${s.effective_chip_temp_c}°C)`}
             </Badge>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap">
-            <Input
-              id="guardian-maxchiptemp"
-              type="number"
-              min={40}
-              max={74}
-              step={1}
-              value={maxChipTemp}
-              onChange={(e) =>
-                setMaxChipTemp(e.target.value === '' ? '' : Number(e.target.value))
-              }
-              disabled={pending}
-              className="max-w-[100px]"
-            />
             <Button
-              variant="subtle"
-              disabled={pending || maxChipTemp === '' || typeof maxChipTemp !== 'number' || maxChipTemp < 40 || maxChipTemp >= 75}
-              onClick={() =>
-                typeof maxChipTemp === 'number' && maxChipTemp >= 40 && maxChipTemp < 75 &&
-                run({ max_chip_temp_c: maxChipTemp }, `ASIC chip max temperature set to ${maxChipTemp}°C`)
-              }
+              variant={s.chip_temp_source !== 'custom' ? 'default' : 'outline'}
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                setMaxChipTemp('');
+                void run({ clear_chip_temp: true }, 'ASIC chip target set to inherit from Auto-Fan');
+              }}
             >
-              Save Chip override
+              Use Auto-Fan target ({s.autofan_chip_temp_c ?? d.chip_high_c}°C)
             </Button>
-            {s.chip_temp_source === 'custom' && (
-              <Button
-                variant="outline"
-                disabled={pending}
-                onClick={() => {
-                  setMaxChipTemp('');
-                  void run({ clear_chip_temp: true }, 'Cleared ASIC chip override — inheriting Auto-Fan target');
-                }}
-              >
-                Use Auto-Fan target
-              </Button>
-            )}
-            <span className="text-xs text-muted-foreground">
-              Hold setting down to ~{chipLowC}°C
-            </span>
+            <Button
+              variant={s.chip_temp_source === 'custom' ? 'default' : 'outline'}
+              size="sm"
+              disabled={pending}
+              onClick={() => {
+                if (typeof maxChipTemp !== 'number') setMaxChipTemp(s.effective_chip_temp_c);
+              }}
+            >
+              Set Custom Override
+            </Button>
           </div>
+
+          {(s.chip_temp_source === 'custom' || typeof maxChipTemp === 'number') && (
+            <div className="flex items-center gap-2 flex-wrap pt-1">
+              <Input
+                id="guardian-maxchiptemp"
+                type="number"
+                min={40}
+                max={74}
+                step={1}
+                value={maxChipTemp}
+                placeholder={`${s.effective_chip_temp_c}`}
+                onChange={(e) =>
+                  setMaxChipTemp(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                disabled={pending}
+                className="max-w-[100px]"
+              />
+              <Button
+                variant="subtle"
+                disabled={pending || maxChipTemp === '' || typeof maxChipTemp !== 'number' || maxChipTemp < 40 || maxChipTemp >= 75}
+                onClick={() =>
+                  typeof maxChipTemp === 'number' && maxChipTemp >= 40 && maxChipTemp < 75 &&
+                  run({ max_chip_temp_c: maxChipTemp }, `ASIC chip custom override set to ${maxChipTemp}°C`)
+                }
+              >
+                Save Chip override
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Hold setting down to ~{chipLowC}°C
+              </span>
+            </div>
+          )}
           {typeof maxChipTemp === 'number' && (maxChipTemp < 40 || maxChipTemp >= 75) && (
             <p className="text-xs text-destructive">
               ASIC chip max temperature must be between 40°C and 74°C (below the 75°C overheat watchdog).
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            The ASIC chip threshold above which it cuts frequency; holds down to {chipLowC}°C.
-            Active target: {s.effective_chip_temp_c}°C ({s.chip_temp_source}). Keep it below the 75°C overheat watchdog.
+            The ASIC chip threshold above which frequency steps down; holds down to ~{chipLowC}°C.
+            Active target: {s.effective_chip_temp_c}°C ({s.chip_temp_source}). Keep below 75°C overheat watchdog.
           </p>
         </div>
 

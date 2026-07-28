@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.20] — 2026-07-28
+
+### Added
+
+- **Symmetrical VR & ASIC chip temperature override controls.** Added dual `Use Auto-Fan target` vs `Set Custom Override` toggle controls and dedicated override input fields for both VR and ASIC chip temperature targets in the Guardian panel.
+
 ## [1.30.19] — 2026-07-28
 
 ### Fixed
