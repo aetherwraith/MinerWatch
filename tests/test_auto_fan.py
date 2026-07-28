@@ -184,9 +184,48 @@ def test_autofan_controller_initializes_at_least_at_firmware_speed():
         assert commanded_speed > 80
 
 
+def test_fan_ramp_down_slew_rate_limit():
+    controller = AutoFanController()
+    miner = {
+        "id": 13,
+        "name": "TestSlew",
+        "family": "bitaxe",
+        "fan_mode": "minerwatch",
+        "auto_target_c": 60.0,
+        "fan_min_override": 25,
+        "fan_max_override": 100,
+    }
+    _states.clear()
+
+    # Seed state at 100% fan speed (e.g. after pinning or unpinning)
+    st = _states[13] = controller._adjust_one.__globals__["_MinerState"]()
+    st.last_commanded_pct = 100
+    st.last_commanded_pct2 = 100
+
+    sample_cool = MinerSample(
+        family="bitaxe",
+        host="10.0.0.50",
+        online=True,
+        temp_chip_c=45.0,  # cool chip, PID wants low fan
+        fan_pct=100,
+    )
+
+    mock_drv = AsyncMock()
+    mock_drv.can_set_fan = True
+    mock_drv.set_fan_speed.return_value = True
+
+    with patch("backend.auto_control.driver_for_record", return_value=mock_drv):
+        asyncio.run(controller._adjust_one(miner, sample_cool))
+        asyncio.run(controller._adjust_one(miner, sample_cool))
+        commanded = mock_drv.set_fan_speed.call_args[0][0]
+        # Should smoothly decay by 2% per tick from 100%, not drop to 25%!
+        assert 90 <= commanded < 100
+
+
 if __name__ == "__main__":
     fns = {k: v for k, v in dict(globals()).items() if k.startswith("test_")}
     for name, fn in fns.items():
         fn()
         print(f"ok  {name}")
     print(f"\n{len(fns)} auto fan verification tests passed")
+

@@ -572,8 +572,10 @@ class AutoFanController:
         fw_fan1 = float(sample.fan_pct) if sample.fan_pct is not None and sample.fan_pct > 0 else 0.0
         fw_fan2 = float(sample.fan_pct_2) if sample.fan_pct_2 is not None and sample.fan_pct_2 > 0 else fw_fan1
         fw_baseline = max(fw_fan1, fw_fan2, float(fan_min))
+        if state.last_commanded_pct and state.last_commanded_pct > 0:
+            fw_baseline = max(fw_baseline, float(state.last_commanded_pct))
 
-        if is_new_state:
+        if is_new_state or (state.fw_floor is None and state.last_commanded_pct and state.last_commanded_pct > fan_min + 5):
             state.fw_floor = fw_baseline
             state.pid.set_output_limits(float(fan_min), float(fan_max))
             state.pid_vr.set_output_limits(float(fan_min), float(fan_max))
@@ -611,12 +613,12 @@ class AutoFanController:
             state.pid_vr.input_value = state.filtered_vr_temp
             out_vr = state.pid_vr.compute()
 
-        # On transition to auto, ensure fan speed starts at least at current firmware speed,
-        # decaying smoothly (1% per tick / 5 seconds) towards fan_min to avoid sudden drops.
+        # On transition to auto or after unpinning, ensure fan speed starts at least at current baseline speed,
+        # decaying smoothly (2% per 5-second tick) towards fan_min to avoid sudden drops.
         if state.fw_floor is not None:
             out_asic = max(out_asic, state.fw_floor)
             out_vr = max(out_vr, state.fw_floor)
-            state.fw_floor = max(float(fan_min), state.fw_floor - 1.0)
+            state.fw_floor = max(float(fan_min), state.fw_floor - 2.0)
             if state.fw_floor <= float(fan_min):
                 state.fw_floor = None
 
@@ -637,6 +639,14 @@ class AutoFanController:
 
         last1 = state.last_commanded_pct if state.last_commanded_pct is not None else -999.0
         last2 = state.last_commanded_pct2 if state.last_commanded_pct2 is not None else -999.0
+
+        # Prevent sudden fan drops (race to the bottom). Limit fan ramp-down rate
+        # to a maximum drop of 4% per tick (5 seconds) when unpinning or cooling off.
+        if last1 > 0 and last1 > fan_min:
+            new_pct1 = max(new_pct1, int(round(last1 - 4.0)))
+        if last2 > 0 and last2 > fan_min:
+            new_pct2 = max(new_pct2, int(round(last2 - 4.0)))
+
         if abs(new_pct1 - last1) < APPLY_THRESHOLD and abs(new_pct2 - last2) < APPLY_THRESHOLD:
             return  # delta too small, don't spam the miner
 

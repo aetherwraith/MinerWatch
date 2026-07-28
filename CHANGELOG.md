@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.2] — 2026-07-28
+
+### Fixed
+
+- **Smooth Fan Ramp-Down & Unpin Floor Decay (Race-to-the-Bottom Fix).** Fixed an issue where unpinning the fan after benchmarking or manual override caused auto-fan to drop precipitously from high speeds down to minimum (25-30%), causing a thermal spike that triggered Guardian frequency step-downs in a race to the bottom.
+- **Damped Deceleration Rate Limit.** Enforced a maximum fan ramp-down slew rate of 4% per 5-second tick (~48% per minute) and smooth transitional floor decay, eliminating thermal overshoot and preventing governor race conditions.
+
 ## [1.32.1] — 2026-07-28
 
 ### Added
