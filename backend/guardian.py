@@ -428,8 +428,17 @@ class GuardianController:
         """Return True if Guardian is actively searching/tuning frequency for miner_id."""
         st = self._states.get(int(miner_id))
         if st is None:
-            return False
+            return True
         return st.is_tuning
+
+    async def eval_miner_now(self, miner_id: int) -> None:
+        """Immediately trigger an evaluation tick for one miner upon enable/config change."""
+        from .poller import poller as _poller
+        m = await db.get_miner(int(miner_id))
+        if m and _coerce_bool(m.get("guardian_enabled")):
+            sample = _poller.last_results.get(int(miner_id))
+            if sample:
+                await self._eval_miner(m, sample, time.time())
 
     def reset_miner(self, miner_id: int) -> None:
         """Drop a miner's in-memory governor state (soft ceiling, reject-rate

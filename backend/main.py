@@ -1956,6 +1956,8 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
     # stale soft ceiling (or reject/settle state) doesn't linger. Fixes "disable
     # to reset the soft ceiling" not working until the next tick.
     guardian.reset_miner(miner_id)
+    if payload.enabled or miner.get("guardian_enabled"):
+        asyncio.create_task(guardian.eval_miner_now(miner_id))
     return {"ok": True, "max_freq_mhz": max_freq}
 
 
