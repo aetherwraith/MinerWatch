@@ -107,7 +107,7 @@ export function MinerPage() {
           <TabsTrigger value="hardware" className="px-1.5 text-xs sm:px-3 sm:text-sm">Hardware</TabsTrigger>
           <TabsTrigger value="history" className="px-1.5 text-xs sm:px-3 sm:text-sm">History</TabsTrigger>
           <TabsTrigger value="controls" className="px-1.5 text-xs sm:px-3 sm:text-sm">Controls</TabsTrigger>
-          <TabsTrigger value="advanced" className="px-1.5 text-xs sm:px-3 sm:text-sm">Advanced</TabsTrigger>
+          <TabsTrigger value="advanced" className="px-1.5 text-xs sm:px-3 sm:text-sm">Guardian & Safety</TabsTrigger>
           <TabsTrigger value="benchmark" className="px-1.5 text-xs sm:px-3 sm:text-sm">Benchmark</TabsTrigger>
         </TabsList>
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.3] — 2026-07-28
+
+### Changed
+
+- **Renamed Tab.** Renamed the `Advanced` tab on the miner page to **`Guardian & Safety`** for clearer, more intuitive navigation.
+- **Guardian Panel Layout & Alignment.** Reordered the Guardian panel so the Profiles & Time-of-Day Switcher section sits directly above the Governor History Charts and Decision Logs. Cleaned up profile card alignment, input heights, and schedule rule form elements.
+
 ## [1.32.2] — 2026-07-28
 
 ### Fixed

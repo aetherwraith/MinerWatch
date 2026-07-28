@@ -582,6 +582,9 @@ export function GuardianPanel({ data }: Props) {
           </p>
         )}
 
+        {/* Guardian Profiles & Scheduled Profile Switcher (Placed above history graphs and logs) */}
+        <GuardianProfilesAndSchedules minerId={miner.id} currentFreq={currentFreq} activeProfile={s?.active_profile} />
+
         {/* Governor Chart & Collapsible Decision Logs */}
         <div className="space-y-4 border-t border-border pt-4">
           <GovernorChart minerId={miner.id} governorType="guardian" title="Guardian Frequency & Temperature History" />
@@ -673,9 +676,6 @@ export function GuardianPanel({ data }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Guardian Profiles & Scheduled Profile Switcher */}
-      <GuardianProfilesAndSchedules minerId={miner.id} currentFreq={currentFreq} activeProfile={s?.active_profile} />
     </Card>
   );
 }
@@ -729,26 +729,31 @@ function GuardianProfilesAndSchedules({
   };
 
   return (
-    <div className="space-y-4 pt-4 border-t border-border/60">
-      <div className="flex items-center gap-2 font-semibold text-sm">
-        <Clock className="h-4 w-4 text-emerald-400" />
-        Guardian Profiles & Time-of-Day Switcher
+    <div className="space-y-4 pt-4 border-t border-border">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <Clock className="h-4 w-4 text-emerald-400" />
+          Guardian Profiles & Time-of-Day Switcher
+        </div>
+        <span className="text-xs text-muted-foreground font-mono">
+          {profiles.length} Profiles · {schedules.length} Rules
+        </span>
       </div>
 
       {/* Profiles Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {profiles.map((p) => {
           const isActive = activeProfile === p.name;
           return (
             <div
               key={p.id}
-              className={`p-3 rounded-lg border flex flex-col justify-between gap-2 transition-colors ${
+              className={`p-3.5 rounded-lg border flex flex-col justify-between gap-3 transition-colors ${
                 isActive ? 'border-emerald-500 bg-emerald-500/10' : 'border-border/60 bg-muted/20'
               }`}
             >
-              <div>
-                <div className="flex items-center justify-between gap-1">
-                  <span className="font-semibold text-foreground truncate">{p.name}</span>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-xs text-foreground truncate">{p.name}</span>
                   {isActive ? (
                     <Badge className="bg-emerald-500 text-slate-950 font-bold text-[10px] shrink-0">
                       Active Now
@@ -763,20 +768,20 @@ function GuardianProfilesAndSchedules({
                     </Badge>
                   )}
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5 font-mono">
-                  {p.max_freq_mhz && <div>Freq: {p.max_freq_mhz} MHz</div>}
-                  {p.voltage_mv && <div>Voltage: {p.voltage_mv} mV</div>}
-                  {p.fan_max_pct && <div>Max Fan: {p.fan_max_pct}%</div>}
+                <div className="text-[11px] text-muted-foreground space-y-0.5 font-mono">
+                  {p.max_freq_mhz && <div>Frequency: <span className="text-foreground">{p.max_freq_mhz} MHz</span></div>}
+                  {p.voltage_mv && <div>Voltage: <span className="text-foreground">{p.voltage_mv} mV</span></div>}
+                  {p.fan_max_pct && <div>Max Fan: <span className="text-foreground">{p.fan_max_pct}%</span></div>}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-border/40">
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
                 <Button
                   variant={isActive ? 'default' : 'subtle'}
                   size="sm"
                   onClick={() => applyProfile.mutate(p.id)}
                   disabled={applyProfile.isPending || isActive}
-                  className={`h-7 text-[11px] px-2.5 gap-1 ${
+                  className={`h-8 text-xs flex-1 gap-1.5 ${
                     isActive ? 'bg-emerald-600 text-white opacity-80' : 'text-emerald-400 hover:text-emerald-300'
                   }`}
                 >
@@ -789,7 +794,7 @@ function GuardianProfilesAndSchedules({
                     size="sm"
                     onClick={() => deleteProfile.mutate(p.id)}
                     disabled={deleteProfile.isPending}
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -801,19 +806,19 @@ function GuardianProfilesAndSchedules({
       </div>
 
       {/* Form: Save Current Settings as Profile */}
-      <div className="flex flex-col sm:flex-row items-center gap-2 p-3 rounded-lg border border-border/50 bg-muted/10 text-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-3 rounded-lg border border-border/60 bg-muted/20 text-xs">
         <Input
           placeholder="New Profile Name (e.g. Quiet Profile)"
           value={newProfileName}
           onChange={(e) => setNewProfileName(e.target.value)}
-          className="h-8 text-xs font-mono sm:w-64"
+          className="h-9 text-xs font-mono flex-1 min-w-0"
         />
         <Button
           variant="secondary"
           size="sm"
           onClick={handleSaveProfile}
           disabled={saveProfile.isPending || !newProfileName.trim()}
-          className="h-8 text-xs gap-1.5"
+          className="h-9 text-xs font-medium gap-1.5 shrink-0"
         >
           <Plus className="h-3.5 w-3.5" />
           Save Current Settings as Profile
@@ -829,21 +834,21 @@ function GuardianProfilesAndSchedules({
             <table className="w-full text-left">
               <thead className="bg-muted/50 text-muted-foreground border-b border-border/60">
                 <tr>
-                  <th className="p-2 pl-3">Time</th>
-                  <th className="p-2">Target Profile</th>
-                  <th className="p-2">Days</th>
-                  <th className="p-2 text-right pr-3">Action</th>
+                  <th className="p-2.5 pl-3 w-24">Time</th>
+                  <th className="p-2.5">Target Profile</th>
+                  <th className="p-2.5 w-36">Days</th>
+                  <th className="p-2.5 text-right pr-3 w-16">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {schedules.map((sc) => (
                   <tr key={sc.id} className="hover:bg-muted/20">
-                    <td className="p-2 pl-3 font-mono font-semibold text-emerald-400">{sc.time_hhmm}</td>
-                    <td className="p-2 font-medium">{sc.profile_name || 'Profile'}</td>
-                    <td className="p-2 text-muted-foreground uppercase text-[10px]">
+                    <td className="p-2.5 pl-3 font-mono font-semibold text-emerald-400">{sc.time_hhmm}</td>
+                    <td className="p-2.5 font-medium">{sc.profile_name || 'Profile'}</td>
+                    <td className="p-2.5 text-muted-foreground uppercase text-[10px]">
                       {sc.days_json ? JSON.parse(sc.days_json).join(', ') : 'ALL'}
                     </td>
-                    <td className="p-2 text-right pr-3">
+                    <td className="p-2.5 text-right pr-3">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -862,27 +867,27 @@ function GuardianProfilesAndSchedules({
         )}
 
         {/* Add Schedule Form */}
-        <div className="p-3 rounded-lg border border-border/50 bg-muted/10 space-y-3 text-xs">
-          <div className="font-medium text-foreground">Add Automatic Time-of-Day Profile Switch</div>
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">Time (HH:MM):</Label>
+        <div className="p-3.5 rounded-lg border border-border/60 bg-muted/20 space-y-3 text-xs">
+          <div className="font-semibold text-foreground">Add Automatic Time-of-Day Profile Switch</div>
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+            <div className="sm:col-span-3 space-y-1">
+              <Label className="text-xs text-muted-foreground">Time (HH:MM)</Label>
               <Input
                 type="time"
                 value={schedTime}
                 onChange={(e) => setSchedTime(e.target.value)}
-                className="h-8 w-28 text-xs font-mono"
+                className="h-9 text-xs font-mono w-full"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">Profile:</Label>
+            <div className="sm:col-span-6 space-y-1">
+              <Label className="text-xs text-muted-foreground">Target Profile</Label>
               <select
                 value={selectedProfileId ?? ''}
                 onChange={(e) => setSelectedProfileId(Number(e.target.value))}
-                className="h-8 rounded-md border border-border bg-background px-2 text-xs font-mono"
+                className="h-9 w-full rounded-md border border-border bg-background px-3 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <option value="">Select Profile...</option>
+                <option value="">Select Target Profile...</option>
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -891,16 +896,18 @@ function GuardianProfilesAndSchedules({
               </select>
             </div>
 
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleAddSchedule}
-              disabled={saveSchedule.isPending || !selectedProfileId}
-              className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white sm:ml-auto"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Switch Schedule
-            </Button>
+            <div className="sm:col-span-3">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleAddSchedule}
+                disabled={saveSchedule.isPending || !selectedProfileId}
+                className="h-9 w-full text-xs font-medium gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Rule
+              </Button>
+            </div>
           </div>
         </div>
       </div>
