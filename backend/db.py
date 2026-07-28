@@ -429,6 +429,38 @@ CREATE TABLE IF NOT EXISTS benchmark_samples (
 );
 
 CREATE INDEX IF NOT EXISTS idx_benchmark_samples_bench ON benchmark_samples(benchmark_id);
+
+CREATE TABLE IF NOT EXISTS guardian_profiles (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    miner_id            INTEGER,
+    name                TEXT NOT NULL,
+    is_benchmark        INTEGER NOT NULL DEFAULT 0,
+    max_freq_mhz        INTEGER,
+    voltage_mv          INTEGER,
+    fan_max_pct         INTEGER,
+    max_power_w         REAL,
+    max_chip_temp_c     REAL,
+    max_vr_temp_c       REAL,
+    created_at          INTEGER NOT NULL,
+    FOREIGN KEY (miner_id) REFERENCES miners(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_guardian_profiles_miner ON guardian_profiles(miner_id);
+
+CREATE TABLE IF NOT EXISTS guardian_schedules (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    miner_id            INTEGER NOT NULL,
+    profile_id          INTEGER NOT NULL,
+    time_hhmm           TEXT NOT NULL,
+    days_json           TEXT NOT NULL DEFAULT '["mon","tue","wed","thu","fri","sat","sun"]',
+    enabled             INTEGER NOT NULL DEFAULT 1,
+    last_triggered_ts   INTEGER,
+    created_at          INTEGER NOT NULL,
+    FOREIGN KEY (profile_id) REFERENCES guardian_profiles(id) ON DELETE CASCADE,
+    FOREIGN KEY (miner_id) REFERENCES miners(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_guardian_schedules_miner ON guardian_schedules(miner_id);
 """
 
 
@@ -2822,4 +2854,224 @@ async def clear_miner_benchmarks(miner_id: int) -> None:
     """Delete all benchmark records for a miner."""
     async with connect() as conn:
         await conn.execute("DELETE FROM miner_benchmarks WHERE miner_id = ?", (miner_id,))
+
+
+# ---------------------------------------------------------------------------
+# Guardian Profiles & Scheduled Switching database helpers
+# ---------------------------------------------------------------------------
+
+async def get_guardian_profiles(miner_id: int) -> list[dict]:
+    """Fetch saved profiles for a miner (including benchmark-derived ones)."""
+    profiles: list[dict] = []
+    async with connect() as conn:
+        conn.row_factory = aiosqlite.Row
+        # 1. Fetch benchmark-derived profiles if available
+        async with conn.execute(
+            """
+            SELECT * FROM miner_benchmarks
+            WHERE miner_id = ? AND status = 'completed'
+            ORDER BY id DESC LIMIT 1
+            """,
+            (miner_id,),
+        ) as cursor:
+            bench = await cursor.fetchone()
+            if bench:
+                b = dict(bench)
+                if b.get("best_eff_freq"):
+                    profiles.append({
+                        "id": -1,  # synthetic id for benchmark max efficiency
+                        "miner_id": miner_id,
+                        "name": "Max Efficiency (Benchmark)",
+                        "is_benchmark": 1,
+                        "max_freq_mhz": b["best_eff_freq"],
+                        "voltage_mv": b["best_eff_volt"],
+                        "fan_max_pct": b.get("pin_fan_pct"),
+                        "max_power_w": None,
+                        "max_chip_temp_c": None,
+                        "max_vr_temp_c": None,
+                        "created_at": b["updated_at"],
+                    })
+                if b.get("best_hash_freq"):
+                    profiles.append({
+                        "id": -2,  # synthetic id for benchmark max hashrate
+                        "miner_id": miner_id,
+                        "name": "Max Hashrate (Benchmark)",
+                        "is_benchmark": 1,
+                        "max_freq_mhz": b["best_hash_freq"],
+                        "voltage_mv": b["best_hash_volt"],
+                        "fan_max_pct": b.get("pin_fan_pct"),
+                        "max_power_w": None,
+                        "max_chip_temp_c": None,
+                        "max_vr_temp_c": None,
+                        "created_at": b["updated_at"],
+                    })
+
+        # 2. Fetch custom user profiles
+        async with conn.execute(
+            """
+            SELECT * FROM guardian_profiles
+            WHERE miner_id = ? OR miner_id IS NULL
+            ORDER BY id ASC
+            """,
+            (miner_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for r in rows:
+                profiles.append(dict(r))
+
+    return profiles
+
+
+async def save_guardian_profile(miner_id: int, profile: dict) -> int:
+    """Insert or update a custom Guardian profile."""
+    now = now_ts()
+    async with connect() as conn:
+        if profile.get("id") and profile["id"] > 0:
+            await conn.execute(
+                """
+                UPDATE guardian_profiles SET
+                    name = ?, max_freq_mhz = ?, voltage_mv = ?,
+                    fan_max_pct = ?, max_power_w = ?, max_chip_temp_c = ?,
+                    max_vr_temp_c = ?
+                WHERE id = ? AND (miner_id = ? OR miner_id IS NULL)
+                """,
+                (
+                    profile["name"],
+                    profile.get("max_freq_mhz"),
+                    profile.get("voltage_mv"),
+                    profile.get("fan_max_pct"),
+                    profile.get("max_power_w"),
+                    profile.get("max_chip_temp_c"),
+                    profile.get("max_vr_temp_c"),
+                    profile["id"],
+                    miner_id,
+                ),
+            )
+            return profile["id"]
+        else:
+            cursor = await conn.execute(
+                """
+                INSERT INTO guardian_profiles (
+                    miner_id, name, is_benchmark, max_freq_mhz, voltage_mv,
+                    fan_max_pct, max_power_w, max_chip_temp_c, max_vr_temp_c, created_at
+                ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    miner_id,
+                    profile["name"],
+                    profile.get("max_freq_mhz"),
+                    profile.get("voltage_mv"),
+                    profile.get("fan_max_pct"),
+                    profile.get("max_power_w"),
+                    profile.get("max_chip_temp_c"),
+                    profile.get("max_vr_temp_c"),
+                    now,
+                ),
+            )
+            return cursor.lastrowid or 0
+
+
+async def delete_guardian_profile(miner_id: int, profile_id: int) -> None:
+    """Delete a custom Guardian profile."""
+    if profile_id <= 0:
+        return  # Synthetic benchmark profiles cannot be deleted directly
+    async with connect() as conn:
+        await conn.execute(
+            "DELETE FROM guardian_profiles WHERE id = ? AND (miner_id = ? OR miner_id IS NULL)",
+            (profile_id, miner_id),
+        )
+
+
+async def get_guardian_schedules(miner_id: int) -> list[dict]:
+    """Fetch active profile switch schedules for a miner."""
+    async with connect() as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute(
+            """
+            SELECT s.*, p.name as profile_name
+            FROM guardian_schedules s
+            LEFT JOIN guardian_profiles p ON s.profile_id = p.id
+            WHERE s.miner_id = ?
+            ORDER BY s.time_hhmm ASC
+            """,
+            (miner_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+
+async def save_guardian_schedule(miner_id: int, schedule: dict) -> int:
+    """Insert or update a profile switch schedule."""
+    now = now_ts()
+    days_json = json.dumps(schedule.get("days", ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]))
+    async with connect() as conn:
+        if schedule.get("id") and schedule["id"] > 0:
+            await conn.execute(
+                """
+                UPDATE guardian_schedules SET
+                    profile_id = ?, time_hhmm = ?, days_json = ?, enabled = ?
+                WHERE id = ? AND miner_id = ?
+                """,
+                (
+                    schedule["profile_id"],
+                    schedule["time_hhmm"],
+                    days_json,
+                    1 if schedule.get("enabled", True) else 0,
+                    schedule["id"],
+                    miner_id,
+                ),
+            )
+            return schedule["id"]
+        else:
+            cursor = await conn.execute(
+                """
+                INSERT INTO guardian_schedules (
+                    miner_id, profile_id, time_hhmm, days_json, enabled, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    miner_id,
+                    schedule["profile_id"],
+                    schedule["time_hhmm"],
+                    days_json,
+                    1 if schedule.get("enabled", True) else 0,
+                    now,
+                ),
+            )
+            return cursor.lastrowid or 0
+
+
+async def delete_guardian_schedule(miner_id: int, schedule_id: int) -> None:
+    """Delete a profile switch schedule."""
+    async with connect() as conn:
+        await conn.execute(
+            "DELETE FROM guardian_schedules WHERE id = ? AND miner_id = ?",
+            (schedule_id, miner_id),
+        )
+
+
+async def update_guardian_schedule_last_triggered(schedule_id: int, ts: int) -> None:
+    """Record trigger timestamp for a schedule."""
+    async with connect() as conn:
+        await conn.execute(
+            "UPDATE guardian_schedules SET last_triggered_ts = ? WHERE id = ?",
+            (ts, schedule_id),
+        )
+
+
+async def get_all_enabled_guardian_schedules() -> list[dict]:
+    """Fetch all active enabled profile switch schedules across miners."""
+    async with connect() as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute(
+            """
+            SELECT s.*, p.name as profile_name, p.max_freq_mhz, p.voltage_mv, p.fan_max_pct, p.max_power_w
+            FROM guardian_schedules s
+            LEFT JOIN guardian_profiles p ON s.profile_id = p.id
+            WHERE s.enabled = 1
+            """
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
 

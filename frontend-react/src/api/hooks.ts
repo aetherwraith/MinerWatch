@@ -16,6 +16,8 @@ import type {
   DonationListResponse,
   FleetHashrateResponse,
   GovernorDecisionRecord,
+  GuardianProfile,
+  GuardianSchedule,
   GuardianStatusResponse,
   LogRecord,
   MetricsRangeResponse,
@@ -965,4 +967,122 @@ export function useDeleteBenchmark(minerId: number) {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Guardian Profiles & Scheduled Switcher hooks
+// ---------------------------------------------------------------------------
+
+export interface ProfileSavePayload {
+  id?: number;
+  name: string;
+  max_freq_mhz?: number | null;
+  voltage_mv?: number | null;
+  fan_max_pct?: number | null;
+  max_power_w?: number | null;
+}
+
+export interface ScheduleSavePayload {
+  id?: number;
+  profile_id: number;
+  time_hhmm: string;
+  days?: string[];
+  enabled?: boolean;
+}
+
+export function useGuardianProfiles(minerId: number) {
+  return useQuery({
+    queryKey: ['guardian-profiles', minerId],
+    queryFn: ({ signal }) =>
+      api<{ miner_id: number; profiles: GuardianProfile[] }>(
+        `/api/miners/${minerId}/guardian/profiles`,
+        { signal }
+      ),
+    refetchInterval: 5000,
+  });
+}
+
+export function useSaveGuardianProfile(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ProfileSavePayload) =>
+      api<{ ok: boolean; profile_id: number }>(`/api/miners/${minerId}/guardian/profiles`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['guardian-profiles', minerId] });
+    },
+  });
+}
+
+export function useDeleteGuardianProfile(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profileId: number) =>
+      api<{ ok: boolean }>(`/api/miners/${minerId}/guardian/profiles/${profileId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['guardian-profiles', minerId] });
+      qc.invalidateQueries({ queryKey: ['guardian-schedules', minerId] });
+    },
+  });
+}
+
+export function useApplyProfileById(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profileId: number) =>
+      api<{ ok: boolean; applied_profile: string; freq_mhz?: number; voltage_mv?: number }>(
+        `/api/miners/${minerId}/guardian/profiles/${profileId}/apply`,
+        {
+          method: 'POST',
+        }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-guardian-status', minerId] });
+      qc.invalidateQueries({ queryKey: ['miners'] });
+    },
+  });
+}
+
+export function useGuardianSchedules(minerId: number) {
+  return useQuery({
+    queryKey: ['guardian-schedules', minerId],
+    queryFn: ({ signal }) =>
+      api<{ miner_id: number; schedules: GuardianSchedule[] }>(
+        `/api/miners/${minerId}/guardian/schedules`,
+        { signal }
+      ),
+    refetchInterval: 5000,
+  });
+}
+
+export function useSaveGuardianSchedule(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: ScheduleSavePayload) =>
+      api<{ ok: boolean; schedule_id: number }>(`/api/miners/${minerId}/guardian/schedules`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['guardian-schedules', minerId] });
+    },
+  });
+}
+
+export function useDeleteGuardianSchedule(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (scheduleId: number) =>
+      api<{ ok: boolean }>(`/api/miners/${minerId}/guardian/schedules/${scheduleId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['guardian-schedules', minerId] });
+    },
+  });
+}
+
 

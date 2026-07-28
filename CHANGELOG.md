@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.0] — 2026-07-28
+
+### Added
+
+- **Guardian Profile Manager & Time-of-Day Scheduler.** Added custom Guardian profiles (e.g., Quiet Profile, Day Mode, Night Efficiency) and automatic time-of-day profile switching rules.
+- **Benchmark Profile Integration.** Automatically incorporates benchmark-derived `Max Efficiency (Benchmark)` and `Max Hashrate (Benchmark)` profiles when available.
+- **Automatic Time-of-Day Switching Engine.** Added background loop (`guardian_scheduler.py`) that checks active schedules every 30 seconds and automatically updates operating frequency, core voltage, and max fan overrides at target HH:MM times.
+- **Governor Audit Trail Logging.** Logs all scheduled profile transitions into the `governor_decisions` log table for full auditability.
+
 ## [1.31.0] — 2026-07-28
 
 ### Added

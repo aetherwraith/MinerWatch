@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, Gauge, ShieldAlert } from 'lucide-react';
+import { Activity, Gauge, ShieldAlert, Clock, Plus, Trash2, Play } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,17 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { ApiError } from '@/lib/api';
-import { useGuardianStatus, useSetGuardianConfig } from '@/api/hooks';
+import {
+  useGuardianStatus,
+  useSetGuardianConfig,
+  useGuardianProfiles,
+  useSaveGuardianProfile,
+  useDeleteGuardianProfile,
+  useApplyProfileById,
+  useGuardianSchedules,
+  useSaveGuardianSchedule,
+  useDeleteGuardianSchedule,
+} from '@/api/hooks';
 import { GovernorChart } from '@/components/miner/GovernorChart';
 import { GovernorDecisionLog } from '@/components/miner/GovernorDecisionLog';
 import type { MinerDetailResponse } from '@/lib/types';
@@ -663,7 +673,214 @@ export function GuardianPanel({ data }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Guardian Profiles & Scheduled Profile Switcher */}
+      <GuardianProfilesAndSchedules minerId={miner.id} currentFreq={currentFreq} />
     </Card>
+  );
+}
+
+function GuardianProfilesAndSchedules({ minerId, currentFreq }: { minerId: number; currentFreq: number | null }) {
+  const { data: profData } = useGuardianProfiles(minerId);
+  const { data: schedData } = useGuardianSchedules(minerId);
+  const saveProfile = useSaveGuardianProfile(minerId);
+  const deleteProfile = useDeleteGuardianProfile(minerId);
+  const applyProfile = useApplyProfileById(minerId);
+  const saveSchedule = useSaveGuardianSchedule(minerId);
+  const deleteSchedule = useDeleteGuardianSchedule(minerId);
+
+  const profiles = profData?.profiles ?? [];
+  const schedules = schedData?.schedules ?? [];
+
+  const [newProfileName, setNewProfileName] = useState('');
+  const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
+  const [schedTime, setSchedTime] = useState('08:00');
+  const [schedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+
+  const handleSaveProfile = () => {
+    if (!newProfileName.trim()) return;
+    saveProfile.mutate(
+      {
+        name: newProfileName.trim(),
+        max_freq_mhz: currentFreq ?? 500,
+      },
+      {
+        onSuccess: () => setNewProfileName(''),
+      }
+    );
+  };
+
+  const handleAddSchedule = () => {
+    if (!selectedProfileId) return;
+    saveSchedule.mutate({
+      profile_id: selectedProfileId,
+      time_hhmm: schedTime,
+      days: schedDays,
+      enabled: true,
+    });
+  };
+
+  return (
+    <div className="space-y-4 pt-4 border-t border-border/60">
+      <div className="flex items-center gap-2 font-semibold text-sm">
+        <Clock className="h-4 w-4 text-emerald-400" />
+        Guardian Profiles & Time-of-Day Switcher
+      </div>
+
+      {/* Profiles Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+        {profiles.map((p) => (
+          <div key={p.id} className="p-3 rounded-lg border border-border/60 bg-muted/20 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground">{p.name}</span>
+                {p.is_benchmark ? (
+                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                    Benchmark
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px]">Custom</Badge>
+                )}
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5 font-mono">
+                {p.max_freq_mhz && <div>Freq: {p.max_freq_mhz} MHz</div>}
+                {p.voltage_mv && <div>Voltage: {p.voltage_mv} mV</div>}
+                {p.fan_max_pct && <div>Max Fan: {p.fan_max_pct}%</div>}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border/40">
+              <Button
+                variant="subtle"
+                size="sm"
+                onClick={() => applyProfile.mutate(p.id)}
+                disabled={applyProfile.isPending}
+                className="h-7 text-[11px] px-2.5 gap-1 text-emerald-400 hover:text-emerald-300"
+              >
+                <Play className="h-3 w-3 fill-current" />
+                Apply Now
+              </Button>
+              {!p.is_benchmark && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => deleteProfile.mutate(p.id)}
+                  disabled={deleteProfile.isPending}
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Form: Save Current Settings as Profile */}
+      <div className="flex flex-col sm:flex-row items-center gap-2 p-3 rounded-lg border border-border/50 bg-muted/10 text-xs">
+        <Input
+          placeholder="New Profile Name (e.g. Quiet Profile)"
+          value={newProfileName}
+          onChange={(e) => setNewProfileName(e.target.value)}
+          className="h-8 text-xs font-mono sm:w-64"
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={handleSaveProfile}
+          disabled={saveProfile.isPending || !newProfileName.trim()}
+          className="h-8 text-xs gap-1.5"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Save Current Settings as Profile
+        </Button>
+      </div>
+
+      {/* Time-of-Day Profile Switcher Table & Add Form */}
+      <div className="space-y-3 pt-2">
+        <div className="text-xs font-semibold text-muted-foreground">Active Time-of-Day Switch Rules</div>
+
+        {schedules.length > 0 && (
+          <div className="rounded-md border border-border/60 overflow-hidden text-xs">
+            <table className="w-full text-left">
+              <thead className="bg-muted/50 text-muted-foreground border-b border-border/60">
+                <tr>
+                  <th className="p-2 pl-3">Time</th>
+                  <th className="p-2">Target Profile</th>
+                  <th className="p-2">Days</th>
+                  <th className="p-2 text-right pr-3">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {schedules.map((sc) => (
+                  <tr key={sc.id} className="hover:bg-muted/20">
+                    <td className="p-2 pl-3 font-mono font-semibold text-emerald-400">{sc.time_hhmm}</td>
+                    <td className="p-2 font-medium">{sc.profile_name || 'Profile'}</td>
+                    <td className="p-2 text-muted-foreground uppercase text-[10px]">
+                      {sc.days_json ? JSON.parse(sc.days_json).join(', ') : 'ALL'}
+                    </td>
+                    <td className="p-2 text-right pr-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteSchedule.mutate(sc.id)}
+                        disabled={deleteSchedule.isPending}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Add Schedule Form */}
+        <div className="p-3 rounded-lg border border-border/50 bg-muted/10 space-y-3 text-xs">
+          <div className="font-medium text-foreground">Add Automatic Time-of-Day Profile Switch</div>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Time (HH:MM):</Label>
+              <Input
+                type="time"
+                value={schedTime}
+                onChange={(e) => setSchedTime(e.target.value)}
+                className="h-8 w-28 text-xs font-mono"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Label className="text-xs">Profile:</Label>
+              <select
+                value={selectedProfileId ?? ''}
+                onChange={(e) => setSelectedProfileId(Number(e.target.value))}
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs font-mono"
+              >
+                <option value="">Select Profile...</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleAddSchedule}
+              disabled={saveSchedule.isPending || !selectedProfileId}
+              className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white sm:ml-auto"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Switch Schedule
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -761,6 +761,32 @@ export interface BenchmarkStatusResponse {
   latest_run: BenchmarkRun | null;
 }
 
+export interface GuardianProfile {
+  id: number;
+  miner_id: number | null;
+  name: string;
+  is_benchmark: number;
+  max_freq_mhz: number | null;
+  voltage_mv: number | null;
+  fan_max_pct: number | null;
+  max_power_w: number | null;
+  max_chip_temp_c: number | null;
+  max_vr_temp_c: number | null;
+  created_at: number;
+}
+
+export interface GuardianSchedule {
+  id: number;
+  miner_id: number;
+  profile_id: number;
+  profile_name?: string | null;
+  time_hhmm: string;
+  days_json: string;
+  enabled: number;
+  last_triggered_ts: number | null;
+  created_at: number;
+}
+
 export interface GuardianStatusResponse {
   enabled: boolean;        // global feature flag
   supported: boolean;      // family + capability supports frequency control

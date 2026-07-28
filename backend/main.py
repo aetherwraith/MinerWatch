@@ -114,6 +114,8 @@ async def lifespan(app: FastAPI):
     await auto_fan.start()
     # Runtime frequency governor (Guardian).
     await guardian.start()
+    from backend import guardian_scheduler
+    await guardian_scheduler.start_guardian_scheduler()
     # Live per-share streamer for AxeOS miners.
     await log_streamer.start()
     # Donate-hashrate catchup & start loop
@@ -127,6 +129,7 @@ async def lifespan(app: FastAPI):
     await wallet_watcher.stop()
     await donation_controller.stop()
     await log_streamer.stop()
+    await guardian_scheduler.stop_guardian_scheduler()
     await guardian.stop()
     await auto_fan.stop()
     await poller.stop()
@@ -1813,6 +1816,26 @@ class BenchmarkApplyPayload(BaseModel):
     profile: str = Field(pattern="^(max_efficiency|max_hashrate)$")
 
 
+class ProfileSavePayload(BaseModel):
+    id: int | None = None
+    name: str = Field(min_length=1, max_length=100)
+    max_freq_mhz: int | None = Field(default=None, ge=100, le=1200)
+    voltage_mv: int | None = Field(default=None, ge=900, le=1500)
+    fan_max_pct: int | None = Field(default=None, ge=10, le=100)
+    max_power_w: float | None = Field(default=None, ge=10, le=500)
+    max_chip_temp_c: float | None = Field(default=None, ge=40, le=90)
+    max_vr_temp_c: float | None = Field(default=None, ge=40, le=110)
+
+
+class ScheduleSavePayload(BaseModel):
+    id: int | None = None
+    profile_id: int
+    time_hhmm: str = Field(pattern="^([0-1][0-9]|2[0-3]):[0-5][0-9]$")
+    days: list[str] = Field(default=["mon", "tue", "wed", "thu", "fri", "sat", "sun"])
+    enabled: bool = True
+
+
+
 
 def _miner_current_freq(miner_id: int) -> int | None:
     """Best-effort current frequency: live poll sample first, else None."""
@@ -2130,6 +2153,102 @@ async def api_benchmark_delete(miner_id: int) -> dict:
 
     await db.clear_miner_benchmarks(miner_id)
     return {"ok": True}
+
+
+# ---------- API: Guardian Profiles & Scheduled Switcher ----------
+
+@app.get("/api/miners/{miner_id}/guardian/profiles")
+async def api_get_guardian_profiles(miner_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    profiles = await db.get_guardian_profiles(miner_id)
+    return {"miner_id": miner_id, "profiles": profiles}
+
+
+@app.post("/api/miners/{miner_id}/guardian/profiles")
+async def api_save_guardian_profile(miner_id: int, payload: ProfileSavePayload) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    profile_id = await db.save_guardian_profile(miner_id, payload.model_dump())
+    return {"ok": True, "profile_id": profile_id}
+
+
+@app.delete("/api/miners/{miner_id}/guardian/profiles/{profile_id}")
+async def api_delete_guardian_profile(miner_id: int, profile_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    await db.delete_guardian_profile(miner_id, profile_id)
+    return {"ok": True}
+
+
+@app.post("/api/miners/{miner_id}/guardian/profiles/{profile_id}/apply")
+async def api_apply_guardian_profile(miner_id: int, profile_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    profiles = await db.get_guardian_profiles(miner_id)
+    target = next((p for p in profiles if p["id"] == profile_id), None)
+    if not target:
+        raise HTTPException(404, "profile not found")
+
+    freq = target.get("max_freq_mhz")
+    volt = target.get("voltage_mv")
+    fan_max = target.get("fan_max_pct")
+    max_power = target.get("max_power_w")
+
+    await db.set_guardian_config(
+        miner_id,
+        max_freq_mhz=freq,
+        max_power_w=max_power,
+        fan_max_override=fan_max,
+    )
+    guardian.reset_miner(miner_id)
+
+    if freq and volt:
+        try:
+            await benchmark._apply_freq_and_volt(miner_id, freq, volt)
+        except Exception as e:
+            logger.warning("Failed applying profile freq/volt: %s", e)
+
+    if fan_max:
+        try:
+            await benchmark._set_fan_speed(miner_id, fan_max)
+        except Exception as e:
+            logger.warning("Failed applying profile fan speed: %s", e)
+
+    return {"ok": True, "applied_profile": target["name"], "freq_mhz": freq, "voltage_mv": volt}
+
+
+@app.get("/api/miners/{miner_id}/guardian/schedules")
+async def api_get_guardian_schedules(miner_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    schedules = await db.get_guardian_schedules(miner_id)
+    return {"miner_id": miner_id, "schedules": schedules}
+
+
+@app.post("/api/miners/{miner_id}/guardian/schedules")
+async def api_save_guardian_schedule(miner_id: int, payload: ScheduleSavePayload) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    schedule_id = await db.save_guardian_schedule(miner_id, payload.model_dump())
+    return {"ok": True, "schedule_id": schedule_id}
+
+
+@app.delete("/api/miners/{miner_id}/guardian/schedules/{schedule_id}")
+async def api_delete_guardian_schedule(miner_id: int, schedule_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+    await db.delete_guardian_schedule(miner_id, schedule_id)
+    return {"ok": True}
+
 
 
 
