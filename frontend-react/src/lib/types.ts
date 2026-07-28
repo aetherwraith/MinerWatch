@@ -708,7 +708,13 @@ export interface GuardianStatusResponse {
   temp_source: string;   // 'vr' | 'chip' | 'both'
   max_temp_c: number | null;    // per-miner high threshold
   max_vr_temp_c: number | null; // per-miner max VR temp
+  effective_vr_temp_c: number;
+  vr_temp_source: 'custom' | 'governor' | 'default';
   max_chip_temp_c: number | null; // per-miner max ASIC chip temp
+  effective_chip_temp_c: number;
+  chip_temp_source: 'custom' | 'governor' | 'default';
+  autofan_vr_temp_c: number | null;
+  autofan_chip_temp_c: number | null;
   max_power_w: number | null;   // per-miner max power override
   fan_max_pct: number | null;   // max fan speed pinned during frequency tuning
   miner_max_power_w: number | null; // telemetry-reported max power

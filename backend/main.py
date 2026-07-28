@@ -1790,6 +1790,8 @@ class GuardianConfigPayload(BaseModel):
     max_temp_c: float | None = Field(default=None, ge=40, le=110)
     max_vr_temp_c: float | None = Field(default=None, ge=40, le=110)
     max_chip_temp_c: float | None = Field(default=None, ge=40, le=74)
+    clear_vr_temp: bool | None = None
+    clear_chip_temp: bool | None = None
     voltage_enabled: bool | None = None
     max_power_w: float | None = Field(default=None, ge=10, le=500)
     fan_max_pct: int | None = Field(default=None, ge=20, le=100)
@@ -1827,6 +1829,31 @@ async def api_guardian_status(miner_id: int) -> dict:
                 current = None
 
     g = cfg.guardian
+    autofan_vr_target = miner.get("fan_vr_target_c")
+    autofan_chip_target = miner.get("auto_target_c")
+
+    max_vr = miner.get("guardian_max_vr_temp_c")
+    if max_vr is not None:
+        eff_vr_temp = float(max_vr)
+        vr_source_label = "custom"
+    elif autofan_vr_target is not None:
+        eff_vr_temp = float(autofan_vr_target)
+        vr_source_label = "governor"
+    else:
+        eff_vr_temp = g.vr_high_c
+        vr_source_label = "default"
+
+    max_chip = miner.get("guardian_max_chip_temp_c")
+    if max_chip is not None:
+        eff_chip_temp = float(max_chip)
+        chip_source_label = "custom"
+    elif autofan_chip_target is not None:
+        eff_chip_temp = float(autofan_chip_target)
+        chip_source_label = "governor"
+    else:
+        eff_chip_temp = g.chip_high_c
+        chip_source_label = "default"
+
     return {
         "enabled": g.enabled,  # global feature flag
         "supported": supported,
@@ -1836,7 +1863,13 @@ async def api_guardian_status(miner_id: int) -> dict:
         "temp_source": (miner.get("guardian_temp_source") or "both"),
         "max_temp_c": miner.get("guardian_max_temp_c"),
         "max_vr_temp_c": miner.get("guardian_max_vr_temp_c"),
+        "effective_vr_temp_c": eff_vr_temp,
+        "vr_temp_source": vr_source_label,
         "max_chip_temp_c": miner.get("guardian_max_chip_temp_c"),
+        "effective_chip_temp_c": eff_chip_temp,
+        "chip_temp_source": chip_source_label,
+        "autofan_vr_temp_c": autofan_vr_target,
+        "autofan_chip_temp_c": autofan_chip_target,
         "voltage_enabled": bool(miner.get("guardian_voltage_enabled")),
         "max_power_w": miner.get("guardian_max_power_w"),
         "fan_max_pct": (miner.get("fan_max_override") or 100),
@@ -1954,6 +1987,8 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
         voltage_enabled=payload.voltage_enabled,
         max_power_w=payload.max_power_w,
         fan_max_override=payload.fan_max_pct,
+        clear_vr_temp=bool(payload.clear_vr_temp),
+        clear_chip_temp=bool(payload.clear_chip_temp),
     )
     # Any settings change re-probes from scratch: drop the in-memory state so a
     # stale soft ceiling (or reject/settle state) doesn't linger. Fixes "disable

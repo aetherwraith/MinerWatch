@@ -2232,46 +2232,61 @@ async def update_miner_guardian_config(
     voltage_enabled: bool | None = None,
     max_power_w: float | None = None,
     fan_max_override: int | None = None,
+    clear_vr_temp: bool = False,
+    clear_chip_temp: bool = False,
 ) -> None:
     """Per-miner Guardian config updater.
 
     None fields leave existing settings untouched. Supports dual thresholds
-    for VR and ASIC chip respectively.
+    for VR and ASIC chip respectively. Explicit clear flags wipe overrides.
     """
     enabled_int = None if enabled is None else (1 if enabled else 0)
     source = None if temp_source is None else str(temp_source).lower()
     voltage_int = None if voltage_enabled is None else (1 if voltage_enabled else 0)
     async with connect() as conn:
+        vr_val = None if clear_vr_temp else max_vr_temp_c
+        chip_val = None if clear_chip_temp else max_chip_temp_c
+
+        vr_expr = "NULL" if clear_vr_temp else "COALESCE(?, guardian_max_vr_temp_c)"
+        chip_expr = "NULL" if clear_chip_temp else "COALESCE(?, guardian_max_chip_temp_c)"
+
+        params = [
+            enabled_int,
+            max_freq_mhz,
+            freq_floor_mhz,
+            source,
+            max_temp_c,
+        ]
+        if not clear_vr_temp:
+            params.append(vr_val)
+        if not clear_chip_temp:
+            params.append(chip_val)
+
+        params.extend([
+            voltage_int,
+            max_power_w,
+            fan_max_override,
+            now_ts(),
+            miner_id,
+        ])
+
         await conn.execute(
-            """
+            f"""
             UPDATE miners SET
               guardian_enabled = COALESCE(?, guardian_enabled),
               guardian_max_freq_mhz = COALESCE(?, guardian_max_freq_mhz),
               guardian_freq_floor_mhz = COALESCE(?, guardian_freq_floor_mhz),
               guardian_temp_source = COALESCE(?, guardian_temp_source),
               guardian_max_temp_c = COALESCE(?, guardian_max_temp_c),
-              guardian_max_vr_temp_c = COALESCE(?, guardian_max_vr_temp_c),
-              guardian_max_chip_temp_c = COALESCE(?, guardian_max_chip_temp_c),
+              guardian_max_vr_temp_c = {vr_expr},
+              guardian_max_chip_temp_c = {chip_expr},
               guardian_voltage_enabled = COALESCE(?, guardian_voltage_enabled),
               guardian_max_power_w = COALESCE(?, guardian_max_power_w),
               fan_max_override = COALESCE(?, fan_max_override),
               updated_at = ?
             WHERE id = ?
             """,
-            (
-                enabled_int,
-                max_freq_mhz,
-                freq_floor_mhz,
-                source,
-                max_temp_c,
-                max_vr_temp_c,
-                max_chip_temp_c,
-                voltage_int,
-                max_power_w,
-                fan_max_override,
-                now_ts(),
-                miner_id,
-            ),
+            params,
         )
         await conn.commit()
 

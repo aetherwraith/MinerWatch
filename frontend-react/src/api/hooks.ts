@@ -648,6 +648,8 @@ interface GuardianConfigPayload {
   max_temp_c?: number;
   max_vr_temp_c?: number;
   max_chip_temp_c?: number;
+  clear_vr_temp?: boolean;
+  clear_chip_temp?: boolean;
   voltage_enabled?: boolean;
   max_power_w?: number;
   fan_max_pct?: number;

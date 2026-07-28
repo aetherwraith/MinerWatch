@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.30.17] — 2026-07-28
+## [1.30.18] — 2026-07-28
 
 ### Added
 
+- **Explicit Guardian vs Auto-Fan temperature target source badges.** Guardian UI card displays real-time badges indicating whether VR and ASIC target temperatures are using a `Custom Guardian Override`, `Inherited from Auto-Fan`, or a `Global Default`.
+- **One-click reset to Auto-Fan target.** Added a `Use Auto-Fan target` button next to custom overrides in the Guardian UI to easily clear custom thresholds and revert to Auto-Fan governor targets.
 - **Configurable tuning max fan speed.** Added a per-miner setting in the Guardian UI to configure the maximum fan speed percentage Guardian pins to during frequency tuning (e.g. 80% or 90% instead of 100%).
 - **Simultaneous VR and ASIC temperature guardian.** Guardian monitors both VR and ASIC chip temperatures at the same time, stepping down frequency if either exceeds limit.
 - **Fan pinning and co-tuning hand-off.** Hardware fans pin to 100% while Guardian actively tunes frequency, handing back control to firmware or PID once settled.
