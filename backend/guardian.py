@@ -393,6 +393,7 @@ class GuardianController:
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
         self._states: dict[int, _GuardianState] = {}
+        self._force_retune: set[int] = set()
         # Live status per miner, surfaced by the API/UI.
         self._status: dict[int, dict[str, Any]] = {}
         self.last_tick_ts: float = 0.0
@@ -444,17 +445,53 @@ class GuardianController:
                         log.warning("guardian: miner=%s set_fan_speed failed on enable: %s", m.get("name"), exc)
 
     def reset_miner(self, miner_id: int) -> None:
-        """Drop a miner's in-memory governor state (soft ceiling, reject-rate
-        baseline, settle timer) and its live readout.
+        """Drop a miner's in-memory governor state and require fresh retuning.
 
         Called when the user changes the miner's Guardian config so a setting
-        change re-probes *immediately* — otherwise the soft ceiling only clears
-        on the next tick, and a quick disable→re-enable (within one interval)
-        never clears it at all because the per-tick cleanup never runs while the
-        miner is disabled.
+        change re-probes *immediately*.
         """
-        self._states.pop(int(miner_id), None)
-        self._status.pop(int(miner_id), None)
+        mid = int(miner_id)
+        self._states.pop(mid, None)
+        self._status.pop(mid, None)
+        self._force_retune.add(mid)
+
+    async def _get_or_create_state(self, miner: dict) -> _GuardianState:
+        miner_id = int(miner["id"])
+        state = self._states.get(miner_id)
+        if state is not None:
+            return state
+
+        state = _GuardianState()
+        self._states[miner_id] = state
+
+        if miner_id in self._force_retune:
+            self._force_retune.discard(miner_id)
+            state.is_tuning = True
+            return state
+
+        # Restore settled state across process restarts if the last logged decision was settled / FAN_RELEASE
+        try:
+            decisions = await db.get_governor_decisions(miner_id, governor_type="guardian", limit=1)
+            if decisions:
+                last_dec = decisions[0]
+                act = last_dec.get("action_taken")
+                det = last_dec.get("details") or {}
+                if isinstance(det, str):
+                    try:
+                        det = json.loads(det)
+                    except Exception:
+                        det = {}
+                is_tuning_prev = det.get("is_tuning")
+                if act == "FAN_RELEASE" or is_tuning_prev is False:
+                    state.is_tuning = False
+                    state.consecutive_holds = max(3, int(det.get("consecutive_holds") or 3))
+                    state.was_tuning = False
+                    state.pinned_fan = None
+                    log.info("guardian: miner=%s restored settled state across restart (is_tuning=False)", miner.get("name"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("guardian: miner=%s failed restoring state: %s", miner.get("name"), exc)
+
+        return state
 
     # ---- main loop ----
 
@@ -526,10 +563,7 @@ class GuardianController:
 
     async def _govern_one(self, miner: dict, sample: MinerSample, gcfg, cfg) -> None:
         miner_id = int(miner["id"])
-        state = self._states.get(miner_id)
-        if state is None:
-            state = _GuardianState()
-            self._states[miner_id] = state
+        state = await self._get_or_create_state(miner)
 
         # Current frequency: trust the live sample; fall back to what we last
         # commanded if the firmware didn't report it this poll.

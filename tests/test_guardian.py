@@ -640,6 +640,27 @@ def test_dual_monitoring_one_hot_one_cool_steps_down():
     assert "Chip" in reason
 
 
+def test_restores_settled_state_on_restart():
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+    from backend.guardian import GuardianController
+
+    async def run():
+        ctrl = GuardianController()
+        miner = {"id": 99, "name": "test_miner"}
+        mock_decisions = [
+            {
+                "action_taken": "FAN_RELEASE",
+                "details": {"is_tuning": False, "consecutive_holds": 3},
+            }
+        ]
+        with patch("backend.db.get_governor_decisions", AsyncMock(return_value=mock_decisions)):
+            st = await ctrl._get_or_create_state(miner)
+            assert st.is_tuning is False
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failures = 0
