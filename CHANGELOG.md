@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.22] — 2026-07-28
+
+### Added
+
+- **Poisson Luck & Cumulative Probability Curve.** Added Poisson distribution chart to Analytics tab (`/analytics`) mapping expected shares submitted vs theoretical block find probability.
+- **Efficiency & Operating Curve (J/TH vs Freq/Power).** Integrated J/TH efficiency plot across operating frequency (MHz) and power (W) states.
+- **Voltage & Temperature Scatter Map.** Added core voltage (mV) vs VR & ASIC chip temperature (°C) scatter correlation chart.
+- **Cold-Drop & Thermal Shock Watch.** Integrated dual-axis chart detecting rapid thermal drops, cold intake, and fan surges.
+- **Uncluttered Tabbed Analytics Navigation.** Organized `/analytics` into sleek view tabs: `Overview`, `Luck Curve`, `Efficiency & Volt/Temp`, and `Cold-Drop Watch`.
+
 ## [1.30.21] — 2026-07-28
 
 ### Fixed

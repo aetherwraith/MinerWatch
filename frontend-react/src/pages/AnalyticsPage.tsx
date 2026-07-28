@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Sparkles, Gauge, ShieldAlert } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { PredictionsCard } from '@/components/analytics/PredictionsCard';
 import { TopSharesCard } from '@/components/analytics/TopSharesCard';
+import { PoissonLuckCard } from '@/components/analytics/PoissonLuckCard';
+import { EfficiencyCurveCard } from '@/components/analytics/EfficiencyCurveCard';
+import { VoltTempMapCard } from '@/components/analytics/VoltTempMapCard';
+import { ColdDropWatchCard } from '@/components/analytics/ColdDropWatchCard';
 import { useFleetBestTop, useFleetPrediction, useMiners } from '@/api/hooks';
 import type { PredictionCoin } from '@/lib/types';
 
 export function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'luck' | 'efficiency' | 'thermal'>('overview');
   // Coin for the "Find a block (solo)" odds — 'auto' = the coin we're mining.
   const [coin, setCoin] = useState<PredictionCoin>('auto');
   const { data: predData } = useFleetPrediction(coin);
@@ -20,19 +26,82 @@ export function AnalyticsPage() {
 
   const predVisible = !!(prediction && prediction.fleet_hashrate_ths && prediction.best_alltime);
   const topVisible = !!top?.entries?.length;
-  const anythingVisible = predVisible || topVisible;
+  const anythingVisible = predVisible || topVisible || miners.length > 0;
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
-        <p className="text-sm text-muted-foreground">
-          Statistical predictions and historical records
-        </p>
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Analytics & Diagnostics</h1>
+          <p className="text-sm text-muted-foreground">
+            Statistical predictions, efficiency curves, and thermal drop analytics
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/50 text-xs self-start sm:self-auto">
+          <Button
+            variant={activeTab === 'overview' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('overview')}
+            className="h-8 px-3 text-xs"
+          >
+            <BarChart3 className="h-3.5 w-3.5 mr-1.5" />
+            Overview
+          </Button>
+          <Button
+            variant={activeTab === 'luck' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('luck')}
+            className="h-8 px-3 text-xs"
+          >
+            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+            Luck Curve
+          </Button>
+          <Button
+            variant={activeTab === 'efficiency' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('efficiency')}
+            className="h-8 px-3 text-xs"
+          >
+            <Gauge className="h-3.5 w-3.5 mr-1.5" />
+            Efficiency & Volt/Temp
+          </Button>
+          <Button
+            variant={activeTab === 'thermal' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('thermal')}
+            className="h-8 px-3 text-xs"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 mr-1.5" />
+            Cold-Drop Watch
+          </Button>
+        </div>
       </header>
 
-      <PredictionsCard data={prediction} coin={coin} onCoinChange={setCoin} />
-      <TopSharesCard data={top} miners={miners} />
+      {activeTab === 'overview' && (
+        <div className="space-y-5">
+          <PredictionsCard data={prediction} coin={coin} onCoinChange={setCoin} />
+          <TopSharesCard data={top} miners={miners} />
+        </div>
+      )}
+
+      {activeTab === 'luck' && (
+        <div className="space-y-5">
+          <PoissonLuckCard prediction={prediction} />
+        </div>
+      )}
+
+      {activeTab === 'efficiency' && (
+        <div className="space-y-5">
+          <EfficiencyCurveCard miners={miners} />
+          <VoltTempMapCard miners={miners} />
+        </div>
+      )}
+
+      {activeTab === 'thermal' && (
+        <div className="space-y-5">
+          <ColdDropWatchCard miners={miners} />
+        </div>
+      )}
 
       {!anythingVisible && (
         <Card>
