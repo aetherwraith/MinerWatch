@@ -155,8 +155,8 @@ def test_floor_above_ceiling_clamped():
     assert target == 600
 
 
-def test_fan_overhead_blocks_step_up():
-    # Cool temperatures, but fan is running at max capacity (100% >= 95%) -> hold frequency
+def test_temp_governs_step_up_regardless_of_fan_pct():
+    # Cool temperatures allow frequency step up even if fan is at 100%
     from backend.guardian import decide_frequency
     target, reason = decide_frequency(
         current_freq=500,
@@ -168,8 +168,8 @@ def test_fan_overhead_blocks_step_up():
         fan_pct=100.0,
         max_fan_pct=95.0,
     )
-    assert target == 500
-    assert "max capacity" in reason
+    assert target == 510
+    assert "Chip 50.0°C < 60.0°C" in reason
 
 
 # ---- reject-rate windowed helper -------------------------------------------

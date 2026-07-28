@@ -158,16 +158,13 @@ def decide_frequency(
             f"→ -{step_down_err_mhz} MHz"
         )
     else:
-        # Check recovery condition: all active sensors must be cool and fan overhead must exist.
+        # Check recovery condition: all active sensors must be cool.
         vr_cool = vr_temp_c is None or vr_high_c is None or vr_low_c is None or round(vr_temp_c, 1) < round(vr_low_c, 1)
         chip_cool = chip_temp_c is None or chip_high_c is None or chip_low_c is None or round(chip_temp_c, 1) < round(chip_low_c, 1)
         legacy_cool = temp_c is None or temp_high_c is None or temp_low_c is None or round(temp_c, 1) < round(temp_low_c, 1)
         has_temp_reading = vr_temp_c is not None or chip_temp_c is not None or temp_c is not None
-        fan_overhead_ok = fan_pct is None or fan_pct < max_fan_pct
 
         if allow_recovery and has_temp_reading and vr_cool and chip_cool and legacy_cool:
-            if not fan_overhead_ok:
-                return current_freq, f"cool but fan at max capacity ({fan_pct:.0f}%) → hold frequency"
             target = current_freq + step_up_mhz
             if vr_temp_c is not None and chip_temp_c is not None and vr_low_c is not None and chip_low_c is not None:
                 reason = f"VR {vr_temp_c:.1f}°C & Chip {chip_temp_c:.1f}°C cool → +{step_up_mhz} MHz"
@@ -272,7 +269,7 @@ def decide_point(
         hi = vr_temp_high_c if vr_over else (chip_temp_high_c if chip_over else temp_high_c)
         return nf, nv, f"{lbl} {val:.1f}°C > {hi:.1f}°C → back off"
 
-    # 3. Instability → cure with voltage if there's thermal+power+fan headroom
+    # 3. Instability → cure with voltage if there's thermal+power headroom
     if hashrate_invalid:
         power_ok = (
             not power_cutoff_w or power_w is None or power_w < power_cutoff_w * 0.92
@@ -282,28 +279,22 @@ def decide_point(
             and (chip_c is None or chip_temp_high_c is None or round(chip_c, 1) <= round(chip_temp_high_c - 2, 1))
             and (temp_c is None or temp_high_c is None or round(temp_c, 1) <= round(temp_high_c - 2, 1))
         )
-        fan_ok = fan_pct is None or fan_pct < max_fan_pct
-        if v < volt_ceiling_mv and power_ok and temp_ok and fan_ok:
+        if v < volt_ceiling_mv and power_ok and temp_ok:
             nv = min(volt_ceiling_mv, v + step_volt_mv)
             return f, nv, f"{instability_label} → +{nv - v} mV (cure)"
-        elif v < volt_ceiling_mv and not fan_ok:
-            return f, v, f"{instability_label}, fan at max ({fan_pct:.0f}%) → hold voltage"
         nf = max(floor_mhz, f - step_down_mhz)
         if nf == f:
             return f, v, "hold (at floor)"
         return nf, v, f"{instability_label}, V maxed → -{f - nf} MHz"
 
-    # 4. Valid and cool → push frequency up for more hashrate (if fan overhead exists)
+    # 4. Valid and cool → push frequency up for more hashrate
     vr_cool = vr_c is None or vr_temp_low_c is None or round(vr_c, 1) < round(vr_temp_low_c, 1)
     chip_cool = chip_c is None or chip_temp_low_c is None or round(chip_c, 1) < round(chip_temp_low_c, 1)
     legacy_cool = temp_c is None or temp_low_c is None or round(temp_c, 1) < round(temp_low_c, 1)
     if valid and vr_cool and chip_cool and legacy_cool and f < ceiling_mhz:
-        if fan_pct is not None and fan_pct >= max_fan_pct:
-            return f, v, f"cool but fan at max capacity ({fan_pct:.0f}%) → hold frequency"
         nf = min(ceiling_mhz, f + step_up_mhz)
         if nf != f:
-            fan_lbl = f" (fan {fan_pct:.0f}%)" if fan_pct is not None else ""
-            return nf, v, f"valid & cool{fan_lbl} → +{nf - f} MHz"
+            return nf, v, f"valid & cool → +{nf - f} MHz"
 
     # 5. Hold — park (no NVS write).
     return f, v, "hold (within deadband)"
