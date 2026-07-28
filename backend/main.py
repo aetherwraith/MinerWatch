@@ -1959,12 +1959,16 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
     if payload.enabled or (payload.enabled is None and miner.get("guardian_enabled")):
         asyncio.create_task(guardian.eval_miner_now(miner_id))
     elif payload.enabled is False:
-        drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
-        if drv.can_set_fan and (miner.get("fan_mode") or "firmware").lower() != "minerwatch":
-            try:
-                await drv.set_auto_fan(True)
-            except Exception:  # noqa: BLE001
-                pass
+        mode = (miner.get("fan_mode") or "firmware").lower()
+        if mode == "firmware":
+            drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
+            if drv.can_set_fan:
+                try:
+                    await drv.set_auto_fan(True)
+                except Exception:  # noqa: BLE001
+                    pass
+        # if mode == "minerwatch": auto_control resumes PID control automatically.
+        # if mode == "manual" or other: leave fan at max as-is.
     return {"ok": True, "max_freq_mhz": max_freq}
 
 

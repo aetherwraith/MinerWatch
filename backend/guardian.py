@@ -662,12 +662,15 @@ class GuardianController:
             elif getattr(state, "was_tuning", False):
                 state.was_tuning = False
                 mode = (miner.get("fan_mode") or "firmware").lower()
-                if mode != "minerwatch":
+                if mode == "firmware":
                     try:
                         await drv.set_auto_fan(True, target_temp_c=chip_high)
                         log.info("guardian: miner=%s settled → released device fan to firmware auto-fan", miner.get("name"))
                     except Exception as exc:  # noqa: BLE001
                         log.warning("guardian: miner=%s set_auto_fan failed: %s", miner.get("name"), exc)
+                elif mode == "minerwatch":
+                    log.info("guardian: miner=%s settled → released fan control to MinerWatch auto-fan", miner.get("name"))
+                # otherwise mode == "manual" or other: leave fan at max
 
         expected_ths = sample.expected_hashrate_ths
         if expected_ths is None:
