@@ -80,10 +80,10 @@ def test_temp_rounding_prevents_false_trigger():
     assert target == 550
     assert "hold" in reason
 
-    # 70.06 rounds to 70.1 (> 70.0) → steps down and prints 70.1°C > 70.0°C
-    target, reason = decide(current_freq=550, temp_c=70.06, hw_error_pct=0.0)
+    # 71.1°C exceeds 70.0°C + 1.0°C leniency buffer → steps down and prints 71.1°C > 70.0°C
+    target, reason = decide(current_freq=550, temp_c=71.1, hw_error_pct=0.0)
     assert target == 530
-    assert "70.1°C > 70.0°C" in reason
+    assert "71.1°C > 70.0°C" in reason
 
 
 def test_up_step_capped_at_ceiling():
@@ -657,6 +657,39 @@ def test_restores_settled_state_on_restart():
         with patch("backend.db.get_governor_decisions", AsyncMock(return_value=mock_decisions)):
             st = await ctrl._get_or_create_state(miner)
             assert st.is_tuning is False
+
+    asyncio.run(run())
+
+
+def test_inherits_autofan_targets_by_default():
+    # If guardian_max_chip_temp_c / guardian_max_vr_temp_c are not set,
+    # Guardian matches Auto-Fan auto_target_c and fan_vr_target_c per miner.
+    import asyncio
+    from unittest.mock import AsyncMock, Mock, patch
+    from backend.guardian import GuardianController, MinerSample, _GuardianState
+
+    async def run():
+        ctrl = GuardianController()
+        miner = {
+            "id": 101,
+            "name": "test_sync",
+            "family": "bitaxe",
+            "guardian_enabled": 1,
+            "auto_target_c": 62.0,
+            "fan_vr_target_c": 58.0,
+        }
+        sample = MinerSample(
+            family="bitaxe", host="10.0.0.1", online=True, frequency_mhz=500, temp_chip_c=55.0, temp_vr_c=55.0
+        )
+        gcfg = Mock()
+        gcfg.hashrate_average_window_seconds = 30
+        gcfg.frequency_floor_mhz = 400
+        gcfg.hashrate_settle_seconds = 0
+        gcfg.temp_band.return_value = (70.0, 60.0)
+        with patch("backend.db.get_recent_metrics_average", AsyncMock(return_value={})), \
+             patch("backend.db.get_governor_decisions", AsyncMock(return_value=[])), \
+             patch("backend.guardian.driver_for_record") as mock_drv:
+            await ctrl._govern_one(miner, sample, gcfg, Mock())
 
     asyncio.run(run())
 

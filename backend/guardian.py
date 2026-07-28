@@ -131,9 +131,11 @@ def decide_frequency(
 
     # 1..3 — the control law. Priority: back off on heat (VR then Chip),
     # then on instability, and only otherwise try to recover frequency.
-    vr_over = vr_temp_c is not None and vr_high_c is not None and round(vr_temp_c, 1) > round(vr_high_c, 1)
-    chip_over = chip_temp_c is not None and chip_high_c is not None and round(chip_temp_c, 1) > round(chip_high_c, 1)
-    legacy_over = temp_c is not None and temp_high_c is not None and round(temp_c, 1) > round(temp_high_c, 1)
+    # Over-temperature check includes a +1.0°C leniency buffer above high_c
+    # so minor thermal oscillations do not trigger instant frequency step-downs.
+    vr_over = vr_temp_c is not None and vr_high_c is not None and round(vr_temp_c, 1) > round(vr_high_c + 1.0, 1)
+    chip_over = chip_temp_c is not None and chip_high_c is not None and round(chip_temp_c, 1) > round(chip_high_c + 1.0, 1)
+    legacy_over = temp_c is not None and temp_high_c is not None and round(temp_c, 1) > round(temp_high_c + 1.0, 1)
 
     if vr_over:
         target = current_freq - step_down_temp_mhz
@@ -256,9 +258,10 @@ def decide_point(
         return nf, nv, f"safety: {hard} → back off"
 
     # 2. Temperature over user limits → co-move down the V/F curve.
-    vr_over = vr_c is not None and vr_temp_high_c is not None and round(vr_c, 1) > round(vr_temp_high_c, 1)
-    chip_over = chip_c is not None and chip_temp_high_c is not None and round(chip_c, 1) > round(chip_temp_high_c, 1)
-    legacy_over = temp_c is not None and temp_high_c is not None and round(temp_c, 1) > round(temp_high_c, 1)
+    # Includes a +1.0°C leniency buffer above high_c to prevent premature step-downs.
+    vr_over = vr_c is not None and vr_temp_high_c is not None and round(vr_c, 1) > round(vr_temp_high_c + 1.0, 1)
+    chip_over = chip_c is not None and chip_temp_high_c is not None and round(chip_c, 1) > round(chip_temp_high_c + 1.0, 1)
+    legacy_over = temp_c is not None and temp_high_c is not None and round(temp_c, 1) > round(temp_high_c + 1.0, 1)
     if vr_over or chip_over or legacy_over:
         nf = max(floor_mhz, f - step_down_mhz)
         nv = max(volt_floor_mv, v - step_volt_mv)
@@ -647,7 +650,7 @@ class GuardianController:
         floor = miner.get("guardian_freq_floor_mhz")
         floor = int(floor) if floor else int(gcfg.frequency_floor_mhz)
 
-        # Resolve VR and Chip temperature thresholds
+        # Resolve VR and Chip temperature thresholds (defaults match Auto-Fan per-miner targets if set)
         family_name = (miner.get("family") or "").lower()
         vr_default_high, vr_default_low = gcfg.temp_band("vr", family_name)
         chip_default_high, chip_default_low = gcfg.temp_band("chip", family_name)
@@ -655,6 +658,9 @@ class GuardianController:
         max_vr_temp = miner.get("guardian_max_vr_temp_c")
         if not max_vr_temp and str(miner.get("guardian_temp_source") or "").lower() == "vr":
             max_vr_temp = miner.get("guardian_max_temp_c")
+        if not max_vr_temp and miner.get("fan_vr_target_c") is not None:
+            max_vr_temp = miner.get("fan_vr_target_c")
+
         if max_vr_temp:
             vr_high = float(max_vr_temp)
             vr_low = vr_high - (vr_default_high - vr_default_low)
@@ -664,6 +670,9 @@ class GuardianController:
         max_chip_temp = miner.get("guardian_max_chip_temp_c")
         if not max_chip_temp and str(miner.get("guardian_temp_source") or "").lower() == "chip":
             max_chip_temp = miner.get("guardian_max_temp_c")
+        if not max_chip_temp and miner.get("auto_target_c") is not None:
+            max_chip_temp = miner.get("auto_target_c")
+
         if max_chip_temp:
             chip_high = float(max_chip_temp)
             chip_low = chip_high - (chip_default_high - chip_default_low)

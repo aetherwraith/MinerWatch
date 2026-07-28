@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.30.16] — 2026-07-28
+## [1.30.17] — 2026-07-28
 
 ### Added
 
@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Decision log tracking for fan events.** Fan pinning and fan release events are recorded directly into the Governor Decisions log and live feed.
 
 ### Fixed
+
+- **Synchronized governor and Guardian target temperatures.** Guardian automatically inherits Auto-Fan per-miner VR and ASIC target temperatures (`fan_vr_target_c` and `auto_target_c`) by default so temperature targets match 1:1.
+- **Thermal leniency buffer.** Added a +1.0°C leniency deadband above target temperature before Guardian steps down frequency, preventing premature back-offs on minor thermal oscillations.
 
 - **Persistent settled state across service restarts.** Guardian restores its settled state (`is_tuning = False`) from historical governor decision logs on service restart, preventing settled miners from re-pinning fans to 100% after deploys or restarts.
 - **Accurate decision log reasons for voltage limits.** Refined decision logging when voltage cannot be increased so logs accurately report whether voltage is maxed, temperature is near limit, or power is near limit.
