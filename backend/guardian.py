@@ -653,12 +653,27 @@ class GuardianController:
                                 "guardian: miner=%s tuning active → pinned device fan to %d%%",
                                 miner.get("name"), fan_max,
                             )
+                            try:
+                                await db.insert_governor_decision(
+                                    miner_id=miner_id,
+                                    governor_type="guardian",
+                                    action_taken="FAN_PIN_MAX",
+                                    reason=f"Frequency tuning active → pinned device fan to {fan_max}%",
+                                    chip_temp=temp_chip_c,
+                                    vr_temp=temp_vr_c,
+                                    target_chip_temp=chip_high,
+                                    target_vr_temp=vr_high,
+                                    details={"fan_max": fan_max},
+                                )
+                            except Exception:  # noqa: BLE001
+                                pass
                     except Exception as exc:  # noqa: BLE001
                         log.warning("guardian: miner=%s set_fan_speed failed: %s", miner.get("name"), exc)
             elif getattr(state, "was_tuning", False):
                 state.was_tuning = False
                 state.pinned_fan = None
                 mode = (miner.get("fan_mode") or "firmware").lower()
+                rel_reason = f"Settled at {int(current_freq)} MHz → released fan pin to {mode} mode"
                 if mode == "firmware":
                     try:
                         await drv.set_auto_fan(True, target_temp_c=chip_high)
@@ -667,7 +682,21 @@ class GuardianController:
                         log.warning("guardian: miner=%s set_auto_fan failed: %s", miner.get("name"), exc)
                 elif mode == "minerwatch":
                     log.info("guardian: miner=%s settled → released fan control to MinerWatch auto-fan", miner.get("name"))
-                # otherwise mode == "manual" or other: leave fan at max
+
+                try:
+                    await db.insert_governor_decision(
+                        miner_id=miner_id,
+                        governor_type="guardian",
+                        action_taken="FAN_RELEASE",
+                        reason=rel_reason,
+                        chip_temp=temp_chip_c,
+                        vr_temp=temp_vr_c,
+                        target_chip_temp=chip_high,
+                        target_vr_temp=vr_high,
+                        details={"freq": int(current_freq), "mode": mode},
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
 
         expected_ths = sample.expected_hashrate_ths
         if expected_ths is None:
