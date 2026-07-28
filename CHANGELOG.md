@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.23] — 2026-07-28
+
+### Fixed
+
+- **Synchronized scatter map legend colors.** Updated Voltage & Temperature scatter map legend key badges (`Cool <58°C`, `Warm 58-64°C`, `Hot ≥65°C`) so legend colors match scatter dots 1:1.
+
 ## [1.30.22] — 2026-07-28
 
 ### Added

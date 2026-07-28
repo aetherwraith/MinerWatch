@@ -8,7 +8,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   Cell,
 } from 'recharts';
 
@@ -38,15 +37,32 @@ export function VoltTempMapCard({ miners }: VoltTempMapCardProps) {
   return (
     <Card className="border-border/60">
       <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-amber-500/15 text-amber-400">
-            <ThermometerSnowflake className="h-5 w-5" />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-amber-500/15 text-amber-400">
+              <ThermometerSnowflake className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold">Voltage & Temperature Scatter Map</CardTitle>
+              <CardDescription>
+                Correlation mapping between core voltage (mV) and ASIC/VR temperatures (°C)
+              </CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-base font-semibold">Voltage & Temperature Scatter Map</CardTitle>
-            <CardDescription>
-              Correlation mapping between core voltage (mV) and ASIC/VR temperatures (°C)
-            </CardDescription>
+
+          <div className="flex items-center gap-3 text-xs bg-muted/30 px-3 py-1.5 rounded-md border border-border/40">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />
+              <span className="text-muted-foreground">Cool (&lt;58°C)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-500 inline-block" />
+              <span className="text-muted-foreground">Warm (58–64°C)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500 inline-block" />
+              <span className="text-muted-foreground">Hot (≥65°C)</span>
+            </div>
           </div>
         </div>
       </CardHeader>
@@ -89,8 +105,7 @@ export function VoltTempMapCard({ miners }: VoltTempMapCardProps) {
                   name,
                 ]}
               />
-              <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-              <Scatter name="ASIC Chip Temperature" data={chipData} fill="#f97316">
+              <Scatter name="ASIC Chip Temperature" data={chipData}>
                 {chipData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
