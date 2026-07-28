@@ -956,6 +956,7 @@ class GuardianController:
             "asic_error_delta": asic_error_delta,
             "reason": reason,
             "changed": bool(changed),
+            "is_tuning": self.is_tuning(miner_id),
             "ts": int(time.time()),
         }
 

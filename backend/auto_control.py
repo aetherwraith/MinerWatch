@@ -535,8 +535,8 @@ class AutoFanController:
             raw_temp = float(sample.temp_chip_c) if sample.temp_chip_c is not None else 0.0
             new_pct1 = fan_max
             new_pct2 = fan_max
-            last1 = state.last_commanded_pct or new_pct1
-            last2 = state.last_commanded_pct2 or new_pct2
+            last1 = state.last_commanded_pct if state.last_commanded_pct is not None else -999.0
+            last2 = state.last_commanded_pct2 if state.last_commanded_pct2 is not None else -999.0
             if abs(new_pct1 - last1) >= APPLY_THRESHOLD or abs(new_pct2 - last2) >= APPLY_THRESHOLD:
                 cfg = get_config()
                 drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
@@ -635,8 +635,8 @@ class AutoFanController:
         new_pct1 = int(round(max(fan_min, min(fan_max, f1_pct))))
         new_pct2 = int(round(max(fan_min, min(fan_max, f2_pct))))
 
-        last1 = state.last_commanded_pct or new_pct1
-        last2 = state.last_commanded_pct2 or new_pct2
+        last1 = state.last_commanded_pct if state.last_commanded_pct is not None else -999.0
+        last2 = state.last_commanded_pct2 if state.last_commanded_pct2 is not None else -999.0
         if abs(new_pct1 - last1) < APPLY_THRESHOLD and abs(new_pct2 - last2) < APPLY_THRESHOLD:
             return  # delta too small, don't spam the miner
 
