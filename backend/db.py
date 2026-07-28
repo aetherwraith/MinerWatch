@@ -2220,7 +2220,7 @@ async def get_latest_notable_share() -> dict[str, Any] | None:
 # backend/guardian.py and docs/guardian-design.md.
 
 
-async def set_guardian_config(
+async def update_miner_guardian_config(
     miner_id: int,
     enabled: bool | None = None,
     max_freq_mhz: int | None = None,
@@ -2231,12 +2231,11 @@ async def set_guardian_config(
     max_chip_temp_c: float | None = None,
     voltage_enabled: bool | None = None,
     max_power_w: float | None = None,
+    fan_max_override: int | None = None,
 ) -> None:
-    """Update the Guardian settings for a miner.
+    """Per-miner Guardian config updater.
 
-    All fields are optional: pass only the ones you want to change, the
-    others are left untouched (COALESCE). ``enabled`` is stored as 0/1.
-    ``max_vr_temp_c`` and ``max_chip_temp_c`` set the per-miner max temp targets
+    None fields leave existing settings untouched. Supports dual thresholds
     for VR and ASIC chip respectively.
     """
     enabled_int = None if enabled is None else (1 if enabled else 0)
@@ -2255,6 +2254,7 @@ async def set_guardian_config(
               guardian_max_chip_temp_c = COALESCE(?, guardian_max_chip_temp_c),
               guardian_voltage_enabled = COALESCE(?, guardian_voltage_enabled),
               guardian_max_power_w = COALESCE(?, guardian_max_power_w),
+              fan_max_override = COALESCE(?, fan_max_override),
               updated_at = ?
             WHERE id = ?
             """,
@@ -2268,11 +2268,15 @@ async def set_guardian_config(
                 max_chip_temp_c,
                 voltage_int,
                 max_power_w,
+                fan_max_override,
                 now_ts(),
                 miner_id,
             ),
         )
         await conn.commit()
+
+
+set_guardian_config = update_miner_guardian_config
 
 
 # ---------- Donate hashrate ----------

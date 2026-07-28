@@ -1792,6 +1792,7 @@ class GuardianConfigPayload(BaseModel):
     max_chip_temp_c: float | None = Field(default=None, ge=40, le=74)
     voltage_enabled: bool | None = None
     max_power_w: float | None = Field(default=None, ge=10, le=500)
+    fan_max_pct: int | None = Field(default=None, ge=20, le=100)
 
 
 def _miner_current_freq(miner_id: int) -> int | None:
@@ -1838,6 +1839,7 @@ async def api_guardian_status(miner_id: int) -> dict:
         "max_chip_temp_c": miner.get("guardian_max_chip_temp_c"),
         "voltage_enabled": bool(miner.get("guardian_voltage_enabled")),
         "max_power_w": miner.get("guardian_max_power_w"),
+        "fan_max_pct": (miner.get("fan_max_override") or 100),
         "supports_voltage": bool(caps.get("set_voltage")),
         "voltage_master": g.v2_voltage_enabled,
         "current_freq_mhz": current,
@@ -1951,6 +1953,7 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
         max_chip_temp_c=payload.max_chip_temp_c,
         voltage_enabled=payload.voltage_enabled,
         max_power_w=payload.max_power_w,
+        fan_max_override=payload.fan_max_pct,
     )
     # Any settings change re-probes from scratch: drop the in-memory state so a
     # stale soft ceiling (or reject/settle state) doesn't linger. Fixes "disable

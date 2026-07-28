@@ -46,6 +46,7 @@ export function GuardianPanel({ data }: Props) {
   const [maxVrTemp, setMaxVrTemp] = useState<number | ''>('');
   const [maxChipTemp, setMaxChipTemp] = useState<number | ''>('');
   const [maxPower, setMaxPower] = useState<number | ''>('');
+  const [fanMaxPct, setFanMaxPct] = useState<number | ''>('');
   // At-your-own-risk confirmation, gating the enable toggle.
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Separate (stronger) confirmation for the Phase 2 voltage co-tuner opt-in.
@@ -60,12 +61,14 @@ export function GuardianPanel({ data }: Props) {
     setMaxVrTemp(s.max_vr_temp_c ?? s.defaults.vr_high_c ?? '');
     setMaxChipTemp(s.max_chip_temp_c ?? s.defaults.chip_high_c ?? '');
     setMaxPower(s.max_power_w ?? '');
+    setFanMaxPct(s.fan_max_pct ?? 100);
   }, [
     s?.max_freq_mhz,
     s?.current_freq_mhz,
     s?.max_vr_temp_c,
     s?.max_chip_temp_c,
     s?.max_power_w,
+    s?.fan_max_pct,
   ]);
 
   if (!capabilities.set_frequency) {
@@ -134,6 +137,7 @@ export function GuardianPanel({ data }: Props) {
       max_chip_temp_c?: number;
       voltage_enabled?: boolean;
       max_power_w?: number;
+      fan_max_pct?: number;
     },
     ok: string,
   ) {
@@ -363,6 +367,42 @@ export function GuardianPanel({ data }: Props) {
           <p className="text-xs text-muted-foreground">
             Per-miner override for the safety cutoff power limit. Gathers from the miner's
             hardware defaults, and falls back to the global limit ({d.power_cutoff_w ?? 40} W) if unset.
+          </p>
+        </div>
+
+        {/* Tuning Max Fan Speed */}
+        <div className="space-y-2 border-t border-border pt-4">
+          <Label htmlFor="guardian-maxfan" className="text-sm">
+            Tuning Max Fan Speed (%)
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="guardian-maxfan"
+              type="number"
+              min={20}
+              max={100}
+              step={5}
+              value={fanMaxPct}
+              onChange={(e) =>
+                setFanMaxPct(e.target.value === '' ? '' : Number(e.target.value))
+              }
+              disabled={pending}
+              className="max-w-[100px]"
+            />
+            <Button
+              variant="subtle"
+              disabled={pending || fanMaxPct === ''}
+              onClick={() =>
+                typeof fanMaxPct === 'number' &&
+                run({ fan_max_pct: fanMaxPct }, `Tuning max fan speed set to ${fanMaxPct}%`)
+              }
+            >
+              Save fan speed
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The target fan speed Guardian pins the hardware to while actively tuning frequency.
+            Defaults to 100%; lower it (e.g., 80% or 90%) for quieter tuning.
           </p>
         </div>
 

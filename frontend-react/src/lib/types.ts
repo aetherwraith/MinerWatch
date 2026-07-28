@@ -710,6 +710,7 @@ export interface GuardianStatusResponse {
   max_vr_temp_c: number | null; // per-miner max VR temp
   max_chip_temp_c: number | null; // per-miner max ASIC chip temp
   max_power_w: number | null;   // per-miner max power override
+  fan_max_pct: number | null;   // max fan speed pinned during frequency tuning
   miner_max_power_w: number | null; // telemetry-reported max power
   voltage_enabled: boolean;     // per-miner opt-in for the voltage co-tuner (Phase 2)
   supports_voltage: boolean;    // family exposes voltage control

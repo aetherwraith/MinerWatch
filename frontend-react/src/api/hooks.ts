@@ -650,6 +650,7 @@ interface GuardianConfigPayload {
   max_chip_temp_c?: number;
   voltage_enabled?: boolean;
   max_power_w?: number;
+  fan_max_pct?: number;
 }
 
 export function useSetGuardianConfig(minerId: number) {
