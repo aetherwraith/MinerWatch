@@ -285,7 +285,15 @@ def decide_point(
         nf = max(floor_mhz, f - step_down_mhz)
         if nf == f:
             return f, v, "hold (at floor)"
-        return nf, v, f"{instability_label}, V maxed → -{f - nf} MHz"
+        if v >= volt_ceiling_mv:
+            v_reason = "V maxed"
+        elif not temp_ok:
+            v_reason = "temp near limit"
+        elif not power_ok:
+            v_reason = "power near limit"
+        else:
+            v_reason = "voltage blocked"
+        return nf, v, f"{instability_label}, {v_reason} → -{f - nf} MHz"
 
     # 4. Valid and cool → push frequency up for more hashrate
     vr_cool = vr_c is None or vr_temp_low_c is None or round(vr_c, 1) < round(vr_temp_low_c, 1)

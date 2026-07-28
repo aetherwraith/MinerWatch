@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.30.12] — 2026-07-28
+## [1.30.13] — 2026-07-28
 
 ### Added
 
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Accurate decision log reasons for voltage limits.** Refined decision logging when voltage cannot be increased so logs accurately report whether voltage is maxed, temperature is near limit, or power is near limit.
 - **Temperature-governed voltage and frequency tuning.** Removed 95% fan capacity blocking so measured sensor temperatures and power limits directly govern voltage curing and frequency recovery.
 - **Voltage co-tuning settlement and tick logging.** Fixed a bug where voltage-enabled miners bypassed hold counter incrementing and database decision logging on equilibrium ticks, restoring scheduled decision logging and fan release.
 - **Enhanced dark mode contrast for radio buttons and switches.** Unchecked radio buttons and switches now feature distinct borders and bright slate thumbs so they remain clearly visible against dark card backgrounds.
