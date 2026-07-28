@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.31.0] — 2026-07-28
+
+### Added
+
+- **Guardian Automated Sweet-Spot Benchmarker & Profiler.** Added automated grid sweep engine across operating frequency (MHz) and core voltage (mV) combinations to discover optimal efficiency (J/TH) and max hashrate profiles per miner.
+- **Configurable Sweep Parameters.** Added custom configuration for min/max frequency, min/max voltage, step sizes, dwell times, and acceptable HW error rates, pre-populated with Guardian defaults.
+- **Thermal Safety Net Protection.** Enforced Guardian thermal safety cutoffs throughout the benchmark sweep. Overheat events or safety net triggers immediately restore baseline parameters to protect hardware.
+- **Fan Governor Control Option.** Preserved existing Fan Governor configuration by default during sweeps, with option to temporarily pin fan speed (e.g. 85%) during benchmarking.
+- **One-Click Profile Application.** Automatically generates and provides one-click `Apply Max Efficiency Profile` and `Apply Max Hashrate Profile` actions.
+- **Dedicated Miner Benchmark Tab.** Added new `Benchmark` tab to per-miner pages (`/miner/:id`) featuring live sweep progress, interactive efficiency vs hashrate charts, and detailed matrix tables.
+
 ## [1.30.24] — 2026-07-28
 
 ### Fixed

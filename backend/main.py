@@ -1797,6 +1797,23 @@ class GuardianConfigPayload(BaseModel):
     fan_max_pct: int | None = Field(default=None, ge=20, le=100)
 
 
+class BenchmarkStartPayload(BaseModel):
+    min_freq_mhz: int = Field(ge=100, le=1200, default=400)
+    max_freq_mhz: int = Field(ge=100, le=1200, default=600)
+    freq_step_mhz: int = Field(ge=5, le=200, default=25)
+    min_voltage_mv: int = Field(ge=900, le=1500, default=1150)
+    max_voltage_mv: int = Field(ge=900, le=1500, default=1300)
+    voltage_step_mv: int = Field(ge=5, le=200, default=25)
+    dwell_time_s: int = Field(ge=5, le=600, default=30)
+    max_error_rate_pct: float = Field(ge=0.0, le=50.0, default=5.0)
+    pin_fan_pct: int | None = Field(default=None, ge=10, le=100)
+
+
+class BenchmarkApplyPayload(BaseModel):
+    profile: str = Field(pattern="^(max_efficiency|max_hashrate)$")
+
+
+
 def _miner_current_freq(miner_id: int) -> int | None:
     """Best-effort current frequency: live poll sample first, else None."""
     sample = poller.last_results.get(miner_id)
@@ -2009,6 +2026,111 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
         # if mode == "minerwatch": auto_control resumes PID control automatically.
         # if mode == "manual" or other: leave fan at max as-is.
     return {"ok": True, "max_freq_mhz": max_freq}
+
+
+# ---------- API: Guardian Automated Benchmarker ----------
+
+@app.get("/api/miners/{miner_id}/benchmark/status")
+async def api_benchmark_status(miner_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    running = benchmark.is_benchmark_running(miner_id)
+    latest_run = await db.get_latest_miner_benchmark(miner_id)
+
+    curr_freq = _miner_current_freq(miner_id) or 500
+
+    defaults = {
+        "min_freq_mhz": max(100, curr_freq - 100),
+        "max_freq_mhz": min(1200, curr_freq + 100),
+        "freq_step_mhz": 25,
+        "min_voltage_mv": 1150,
+        "max_voltage_mv": 1300,
+        "voltage_step_mv": 25,
+        "dwell_time_s": 30,
+        "max_error_rate_pct": 5.0,
+        "current_freq_mhz": curr_freq,
+    }
+
+    return {
+        "miner_id": miner_id,
+        "running": running,
+        "defaults": defaults,
+        "latest_run": latest_run,
+    }
+
+
+@app.post("/api/miners/{miner_id}/benchmark/start")
+async def api_benchmark_start(miner_id: int, payload: BenchmarkStartPayload) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    if benchmark.is_benchmark_running(miner_id):
+        raise HTTPException(409, "a benchmark sweep is already running for this miner")
+
+    config = payload.model_dump()
+    try:
+        benchmark_id = await benchmark.start_benchmark_task(miner_id, config)
+        return {"ok": True, "benchmark_id": benchmark_id}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to start benchmark sweep: {e}")
+
+
+@app.post("/api/miners/{miner_id}/benchmark/cancel")
+async def api_benchmark_cancel(miner_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    canceled = benchmark.cancel_benchmark(miner_id)
+    return {"ok": True, "canceled": canceled}
+
+
+@app.post("/api/miners/{miner_id}/benchmark/apply")
+async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    latest = await db.get_latest_miner_benchmark(miner_id)
+    if not latest:
+        raise HTTPException(400, "no benchmark profiles available for this miner")
+
+    if payload.profile == "max_efficiency":
+        freq = latest.get("best_eff_freq")
+        volt = latest.get("best_eff_volt")
+    else:
+        freq = latest.get("best_hash_freq")
+        volt = latest.get("best_hash_volt")
+
+    if not freq:
+        raise HTTPException(400, f"No stable {payload.profile} profile point found in benchmark run")
+
+    await db.set_guardian_config(miner_id, max_freq_mhz=freq)
+    guardian.reset_miner(miner_id)
+
+    try:
+        await benchmark._apply_freq_and_volt(miner_id, freq, volt or 1200)
+    except Exception as e:
+        logger.warning("Failed applying profile freq/volt: %s", e)
+
+    return {"ok": True, "applied_profile": payload.profile, "freq_mhz": freq, "voltage_mv": volt}
+
+
+@app.delete("/api/miners/{miner_id}/benchmark")
+async def api_benchmark_delete(miner_id: int) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    if benchmark.is_benchmark_running(miner_id):
+        benchmark.cancel_benchmark(miner_id)
+
+    await db.clear_miner_benchmarks(miner_id)
+    return {"ok": True}
+
 
 
 # ---------- API: discovery ----------

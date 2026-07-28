@@ -699,6 +699,68 @@ export interface GuardianDefaults {
   power_cutoff_w: number;
 }
 
+export interface BenchmarkConfigDefaults {
+  min_freq_mhz: number;
+  max_freq_mhz: number;
+  freq_step_mhz: number;
+  min_voltage_mv: number;
+  max_voltage_mv: number;
+  voltage_step_mv: number;
+  dwell_time_s: number;
+  max_error_rate_pct: number;
+  current_freq_mhz: number;
+}
+
+export interface BenchmarkSample {
+  id: number;
+  benchmark_id: number;
+  miner_id: number;
+  freq_mhz: number;
+  voltage_mv: number;
+  hashrate_ths: number | null;
+  power_w: number | null;
+  efficiency_j_th: number | null;
+  chip_temp_c: number | null;
+  vr_temp_c: number | null;
+  error_rate_pct: number;
+  stable: number;
+  abort_reason: string | null;
+  created_at: number;
+}
+
+export interface BenchmarkRun {
+  id: number;
+  miner_id: number;
+  status: 'idle' | 'running' | 'completed' | 'aborted' | 'failed';
+  min_freq_mhz: number;
+  max_freq_mhz: number;
+  freq_step_mhz: number;
+  min_voltage_mv: number;
+  max_voltage_mv: number;
+  voltage_step_mv: number;
+  dwell_time_s: number;
+  max_error_rate_pct: number;
+  pin_fan_pct: number | null;
+  current_step: number;
+  total_steps: number;
+  best_eff_freq: number | null;
+  best_eff_volt: number | null;
+  best_eff_j_th: number | null;
+  best_hash_freq: number | null;
+  best_hash_volt: number | null;
+  best_hash_ths: number | null;
+  created_at: number;
+  updated_at: number;
+  samples: BenchmarkSample[];
+}
+
+export interface BenchmarkStatusResponse {
+  miner_id: number;
+  running: boolean;
+  defaults: BenchmarkConfigDefaults;
+  latest_run: BenchmarkRun | null;
+}
+
 export interface GuardianStatusResponse {
   enabled: boolean;        // global feature flag
   supported: boolean;      // family + capability supports frequency control

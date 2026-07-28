@@ -6,6 +6,7 @@ import type {
   AmbientFleet,
   AmbientHistoryResponse,
   AuthStatus,
+  BenchmarkStatusResponse,
   BestRecordsResponse,
   BestRecordsTopResponse,
   BlockFindsResponse,
@@ -878,3 +879,90 @@ export function useGovernorHistory(minerId: number, hours = 24) {
     refetchInterval: 10000,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Benchmark engine hooks
+// ---------------------------------------------------------------------------
+
+export interface BenchmarkStartPayload {
+  min_freq_mhz: number;
+  max_freq_mhz: number;
+  freq_step_mhz: number;
+  min_voltage_mv: number;
+  max_voltage_mv: number;
+  voltage_step_mv: number;
+  dwell_time_s: number;
+  max_error_rate_pct: number;
+  pin_fan_pct?: number | null;
+}
+
+export function useMinerBenchmarkStatus(minerId: number) {
+  return useQuery({
+    queryKey: ['miner-benchmark-status', minerId],
+    queryFn: ({ signal }) =>
+      api<BenchmarkStatusResponse>(`/api/miners/${minerId}/benchmark/status`, { signal }),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.running ? 2000 : 5000;
+    },
+  });
+}
+
+export function useStartBenchmark(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: BenchmarkStartPayload) =>
+      api<{ ok: boolean; benchmark_id: number }>(`/api/miners/${minerId}/benchmark/start`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-benchmark-status', minerId] });
+    },
+  });
+}
+
+export function useCancelBenchmark(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<{ ok: boolean; canceled: boolean }>(`/api/miners/${minerId}/benchmark/cancel`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-benchmark-status', minerId] });
+    },
+  });
+}
+
+export function useApplyBenchmarkProfile(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profile: 'max_efficiency' | 'max_hashrate') =>
+      api<{ ok: boolean; applied_profile: string; freq_mhz: number; voltage_mv: number }>(
+        `/api/miners/${minerId}/benchmark/apply`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ profile }),
+        }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-guardian-status', minerId] });
+      qc.invalidateQueries({ queryKey: ['miners'] });
+    },
+  });
+}
+
+export function useDeleteBenchmark(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<{ ok: boolean }>(`/api/miners/${minerId}/benchmark`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-benchmark-status', minerId] });
+    },
+  });
+}
+

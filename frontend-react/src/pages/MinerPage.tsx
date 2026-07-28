@@ -15,6 +15,7 @@ import { FanControls } from '@/components/miner/FanControls';
 import { WorkModeControls } from '@/components/miner/WorkModeControls';
 import { GuardianPanel } from '@/components/miner/GuardianPanel';
 import { WatchdogPanel } from '@/components/miner/WatchdogPanel';
+import { BenchmarkTab } from '@/components/miner/BenchmarkTab';
 import { useMiner } from '@/api/hooks';
 
 /**
@@ -26,6 +27,7 @@ import { useMiner } from '@/api/hooks';
  *   - History    · hashrate and temperature charts with range selector
  *   - Controls   · fan slider + AUTO + target temperature
  *   - Advanced   · Guardian (runtime frequency governor)
+ *   - Benchmark  · Automated sweet-spot efficiency benchmarker
  *
  * URL :id is a path-param. We coerce it to a finite integer before
  * passing it to the hooks — the route should never match without one,
@@ -100,12 +102,13 @@ export function MinerPage() {
       <MinerBestShares minerId={idNum} />
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-5 sm:inline-flex sm:w-auto">
+        <TabsList className="grid h-auto w-full grid-cols-6 sm:inline-flex sm:w-auto">
           <TabsTrigger value="overview" className="px-1.5 text-xs sm:px-3 sm:text-sm">Overview</TabsTrigger>
           <TabsTrigger value="hardware" className="px-1.5 text-xs sm:px-3 sm:text-sm">Hardware</TabsTrigger>
           <TabsTrigger value="history" className="px-1.5 text-xs sm:px-3 sm:text-sm">History</TabsTrigger>
           <TabsTrigger value="controls" className="px-1.5 text-xs sm:px-3 sm:text-sm">Controls</TabsTrigger>
           <TabsTrigger value="advanced" className="px-1.5 text-xs sm:px-3 sm:text-sm">Advanced</TabsTrigger>
+          <TabsTrigger value="benchmark" className="px-1.5 text-xs sm:px-3 sm:text-sm">Benchmark</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-0 space-y-4">
@@ -139,6 +142,10 @@ export function MinerPage() {
         <TabsContent value="advanced" className="mt-0 space-y-4">
           <WatchdogPanel data={data} />
           <GuardianPanel data={data} />
+        </TabsContent>
+
+        <TabsContent value="benchmark" className="mt-0">
+          <BenchmarkTab minerId={idNum} />
         </TabsContent>
       </Tabs>
     </div>

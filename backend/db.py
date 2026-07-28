@@ -380,6 +380,55 @@ CREATE TABLE IF NOT EXISTS wallet_seen_txs (
     ts              INTEGER NOT NULL,
     PRIMARY KEY (address, txid)
 );
+
+CREATE TABLE IF NOT EXISTS miner_benchmarks (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    miner_id            INTEGER NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'idle',
+    min_freq_mhz        INTEGER NOT NULL,
+    max_freq_mhz        INTEGER NOT NULL,
+    freq_step_mhz       INTEGER NOT NULL,
+    min_voltage_mv      INTEGER NOT NULL,
+    max_voltage_mv      INTEGER NOT NULL,
+    voltage_step_mv     INTEGER NOT NULL,
+    dwell_time_s        INTEGER NOT NULL,
+    max_error_rate_pct  REAL NOT NULL,
+    pin_fan_pct         INTEGER,
+    current_step        INTEGER NOT NULL DEFAULT 0,
+    total_steps         INTEGER NOT NULL DEFAULT 0,
+    best_eff_freq       INTEGER,
+    best_eff_volt       INTEGER,
+    best_eff_j_th       REAL,
+    best_hash_freq      INTEGER,
+    best_hash_volt      INTEGER,
+    best_hash_ths       REAL,
+    created_at          INTEGER NOT NULL,
+    updated_at          INTEGER NOT NULL,
+    FOREIGN KEY (miner_id) REFERENCES miners(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_miner_benchmarks_miner ON miner_benchmarks(miner_id);
+
+CREATE TABLE IF NOT EXISTS benchmark_samples (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    benchmark_id        INTEGER NOT NULL,
+    miner_id            INTEGER NOT NULL,
+    freq_mhz            INTEGER NOT NULL,
+    voltage_mv          INTEGER NOT NULL,
+    hashrate_ths        REAL,
+    power_w             REAL,
+    efficiency_j_th     REAL,
+    chip_temp_c         REAL,
+    vr_temp_c           REAL,
+    error_rate_pct      REAL,
+    stable              INTEGER NOT NULL DEFAULT 1,
+    abort_reason        TEXT,
+    created_at          INTEGER NOT NULL,
+    FOREIGN KEY (benchmark_id) REFERENCES miner_benchmarks(id) ON DELETE CASCADE,
+    FOREIGN KEY (miner_id) REFERENCES miners(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_benchmark_samples_bench ON benchmark_samples(benchmark_id);
 """
 
 
@@ -2629,3 +2678,148 @@ async def get_governor_history(miner_id: int, hours: int = 24) -> list[dict]:
     combined = decisions + synthesized
     combined.sort(key=lambda x: x["ts"])
     return combined
+
+
+# ---------------------------------------------------------------------------
+# Benchmark engine database helpers
+# ---------------------------------------------------------------------------
+
+async def create_miner_benchmark(miner_id: int, config: dict) -> int:
+    """Create a new benchmark run record in `miner_benchmarks`."""
+    now = now_ts()
+    async with connect() as conn:
+        cursor = await conn.execute(
+            """
+            INSERT INTO miner_benchmarks (
+                miner_id, status, min_freq_mhz, max_freq_mhz, freq_step_mhz,
+                min_voltage_mv, max_voltage_mv, voltage_step_mv, dwell_time_s,
+                max_error_rate_pct, pin_fan_pct, current_step, total_steps,
+                created_at, updated_at
+            ) VALUES (?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            """,
+            (
+                miner_id,
+                config["min_freq_mhz"],
+                config["max_freq_mhz"],
+                config["freq_step_mhz"],
+                config["min_voltage_mv"],
+                config["max_voltage_mv"],
+                config["voltage_step_mv"],
+                config["dwell_time_s"],
+                config["max_error_rate_pct"],
+                config.get("pin_fan_pct"),
+                config.get("total_steps", 0),
+                now,
+                now,
+            ),
+        )
+        return cursor.lastrowid or 0
+
+
+async def get_latest_miner_benchmark(miner_id: int) -> dict | None:
+    """Fetch the latest benchmark run and its samples for a miner."""
+    async with connect() as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute(
+            """
+            SELECT * FROM miner_benchmarks
+            WHERE miner_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (miner_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            bench = dict(row)
+
+        async with conn.execute(
+            """
+            SELECT * FROM benchmark_samples
+            WHERE benchmark_id = ?
+            ORDER BY id ASC
+            """,
+            (bench["id"],),
+        ) as cursor:
+            sample_rows = await cursor.fetchall()
+            bench["samples"] = [dict(s) for s in sample_rows]
+
+        return bench
+
+
+async def update_miner_benchmark(
+    benchmark_id: int,
+    status: str | None = None,
+    current_step: int | None = None,
+    best_eff: dict | None = None,
+    best_hash: dict | None = None,
+) -> None:
+    """Update progress, status, or best profiles for a benchmark run."""
+    now = now_ts()
+    updates = ["updated_at = ?"]
+    params: list[Any] = [now]
+
+    if status is not None:
+        updates.append("status = ?")
+        params.append(status)
+    if current_step is not None:
+        updates.append("current_step = ?")
+        params.append(current_step)
+    if best_eff is not None:
+        updates.append("best_eff_freq = ?")
+        params.append(best_eff.get("freq_mhz"))
+        updates.append("best_eff_volt = ?")
+        params.append(best_eff.get("voltage_mv"))
+        updates.append("best_eff_j_th = ?")
+        params.append(best_eff.get("efficiency_j_th"))
+    if best_hash is not None:
+        updates.append("best_hash_freq = ?")
+        params.append(best_hash.get("freq_mhz"))
+        updates.append("best_hash_volt = ?")
+        params.append(best_hash.get("voltage_mv"))
+        updates.append("best_hash_ths = ?")
+        params.append(best_hash.get("hashrate_ths"))
+
+    params.append(benchmark_id)
+    sql = f"UPDATE miner_benchmarks SET {', '.join(updates)} WHERE id = ?"
+
+    async with connect() as conn:
+        await conn.execute(sql, params)
+
+
+async def add_benchmark_sample(benchmark_id: int, miner_id: int, sample: dict) -> int:
+    """Record a sample combination during a benchmark sweep."""
+    now = now_ts()
+    async with connect() as conn:
+        cursor = await conn.execute(
+            """
+            INSERT INTO benchmark_samples (
+                benchmark_id, miner_id, freq_mhz, voltage_mv, hashrate_ths,
+                power_w, efficiency_j_th, chip_temp_c, vr_temp_c, error_rate_pct,
+                stable, abort_reason, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                benchmark_id,
+                miner_id,
+                sample["freq_mhz"],
+                sample["voltage_mv"],
+                sample.get("hashrate_ths"),
+                sample.get("power_w"),
+                sample.get("efficiency_j_th"),
+                sample.get("chip_temp_c"),
+                sample.get("vr_temp_c"),
+                sample.get("error_rate_pct", 0.0),
+                1 if sample.get("stable", True) else 0,
+                sample.get("abort_reason"),
+                now,
+            ),
+        )
+        return cursor.lastrowid or 0
+
+
+async def clear_miner_benchmarks(miner_id: int) -> None:
+    """Delete all benchmark records for a miner."""
+    async with connect() as conn:
+        await conn.execute("DELETE FROM miner_benchmarks WHERE miner_id = ?", (miner_id,))
+
