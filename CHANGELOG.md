@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.24] — 2026-07-28
+
+### Fixed
+
+- **Clean analytical chart tooltips with single units.** Fixed duplicate unit labels (e.g. `mV mV`, `°C °C`, `% %`) in Recharts chart tooltips across `VoltTempMapCard`, `PoissonLuckCard`, `EfficiencyCurveCard`, and `ColdDropWatchCard`.
+
 ## [1.30.23] — 2026-07-28
 
 ### Fixed

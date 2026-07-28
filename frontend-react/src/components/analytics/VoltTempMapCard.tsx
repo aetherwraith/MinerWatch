@@ -76,7 +76,6 @@ export function VoltTempMapCard({ miners }: VoltTempMapCardProps) {
                 type="number"
                 dataKey="voltage"
                 name="Voltage"
-                unit=" mV"
                 domain={['auto', 'auto']}
                 stroke="rgba(255,255,255,0.4)"
                 tick={{ fontSize: 11 }}
@@ -86,7 +85,6 @@ export function VoltTempMapCard({ miners }: VoltTempMapCardProps) {
                 type="number"
                 dataKey="temp"
                 name="ASIC Temp"
-                unit="°C"
                 domain={['auto', 'auto']}
                 stroke="rgba(255,255,255,0.4)"
                 tick={{ fontSize: 11 }}

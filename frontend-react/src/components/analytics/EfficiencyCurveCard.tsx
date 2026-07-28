@@ -76,7 +76,6 @@ export function EfficiencyCurveCard({ miners }: EfficiencyCurveCardProps) {
               />
               <YAxis
                 yAxisId="left"
-                unit=" J/TH"
                 stroke="#10b981"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Efficiency (J/TH)', angle: -90, position: 'insideLeft', fill: '#10b981', fontSize: 11 }}
@@ -84,7 +83,6 @@ export function EfficiencyCurveCard({ miners }: EfficiencyCurveCardProps) {
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                unit=" TH/s"
                 stroke="#38bdf8"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Hashrate (TH/s)', angle: 90, position: 'insideRight', fill: '#38bdf8', fontSize: 11 }}
@@ -96,6 +94,10 @@ export function EfficiencyCurveCard({ miners }: EfficiencyCurveCardProps) {
                   borderRadius: '8px',
                   fontSize: '12px',
                 }}
+                formatter={(val: number, name: string) => [
+                  name.includes('Efficiency') ? `${val} J/TH` : `${val} TH/s`,
+                  name,
+                ]}
               />
               <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
               <Bar yAxisId="left" dataKey="efficiency" name="Efficiency (J/TH)" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.8} />

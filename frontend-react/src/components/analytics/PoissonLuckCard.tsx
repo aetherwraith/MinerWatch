@@ -73,13 +73,11 @@ export function PoissonLuckCard({ prediction }: PoissonLuckCardProps) {
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
               <XAxis
                 dataKey="expectedPct"
-                unit="%"
                 stroke="rgba(255,255,255,0.4)"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Expected Shares Submitted (%)', position: 'bottom', offset: 5, fill: 'rgba(255,255,255,0.6)', fontSize: 11 }}
               />
               <YAxis
-                unit="%"
                 domain={[0, 100]}
                 stroke="rgba(255,255,255,0.4)"
                 tick={{ fontSize: 11 }}

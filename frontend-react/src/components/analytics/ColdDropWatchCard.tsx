@@ -81,7 +81,6 @@ export function ColdDropWatchCard({ miners }: ColdDropWatchCardProps) {
               />
               <YAxis
                 yAxisId="temp"
-                unit="°C"
                 stroke="#f97316"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Temp (°C)', angle: -90, position: 'insideLeft', fill: '#f97316', fontSize: 11 }}
@@ -89,7 +88,6 @@ export function ColdDropWatchCard({ miners }: ColdDropWatchCardProps) {
               <YAxis
                 yAxisId="hash"
                 orientation="right"
-                unit=" TH/s"
                 stroke="#38bdf8"
                 tick={{ fontSize: 11 }}
                 label={{ value: 'Hashrate (TH/s)', angle: 90, position: 'insideRight', fill: '#38bdf8', fontSize: 11 }}
@@ -101,6 +99,10 @@ export function ColdDropWatchCard({ miners }: ColdDropWatchCardProps) {
                   borderRadius: '8px',
                   fontSize: '12px',
                 }}
+                formatter={(val: number, name: string) => [
+                  name.includes('Temp') ? `${val}°C` : `${val} TH/s`,
+                  name,
+                ]}
               />
               <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
               <Line yAxisId="temp" type="monotone" dataKey="chipTemp" name="ASIC Temp (°C)" stroke="#f97316" strokeWidth={2} dot={{ r: 4 }} />
