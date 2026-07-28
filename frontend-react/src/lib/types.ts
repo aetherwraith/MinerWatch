@@ -38,6 +38,7 @@ export interface MinerRecord {
   guardian_max_vr_temp_c: number | null;      // per-miner max VR temp
   guardian_max_chip_temp_c: number | null;    // per-miner max ASIC chip temp
   guardian_max_power_w: number | null;        // per-miner max power override
+  guardian_active_profile?: string | null;     // name of currently active Guardian profile
   last_status: string | null;
   // Offline-alert mute (0 | 1). When 1, disconnect alerts are silenced for
   // this miner until it reconnects — see the dashboard banner Mute button.
@@ -811,6 +812,7 @@ export interface GuardianStatusResponse {
   supports_voltage: boolean;    // family exposes voltage control
   voltage_master: boolean;      // global master switch for the voltage lever
   current_freq_mhz: number | null;
+  active_profile?: string | null;
   defaults: GuardianDefaults;
   live: GuardianLive | null;
 }

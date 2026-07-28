@@ -564,6 +564,7 @@ def _init_db_sync() -> None:
             "ALTER TABLE miners ADD COLUMN guardian_max_vr_temp_c REAL",
             "ALTER TABLE miners ADD COLUMN guardian_max_chip_temp_c REAL",
             "ALTER TABLE miners ADD COLUMN guardian_voltage_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE miners ADD COLUMN guardian_active_profile TEXT",
             # Offline-alert mute (per-miner): suppress disconnect alerts when
             # the miner is powered down on purpose, until it reconnects.
             "ALTER TABLE miners ADD COLUMN offline_muted INTEGER NOT NULL DEFAULT 0",
@@ -2368,6 +2369,16 @@ async def update_miner_guardian_config(
             WHERE id = ?
             """,
             params,
+        )
+        await conn.commit()
+
+
+async def set_active_guardian_profile(miner_id: int, profile_name: str | None) -> None:
+    """Record or clear the active Guardian profile name for a miner."""
+    async with connect() as conn:
+        await conn.execute(
+            "UPDATE miners SET guardian_active_profile = ?, updated_at = ? WHERE id = ?",
+            (profile_name, now_ts(), miner_id),
         )
         await conn.commit()
 

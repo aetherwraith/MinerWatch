@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Pause, Play, Power, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pause, Play, Power, Trash2, Zap } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -212,6 +212,12 @@ export function MinerHeader({ data }: Props) {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               {miner.name}
+              {miner.guardian_active_profile && (
+                <span className="ml-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-0.5 align-middle text-xs font-mono font-medium text-emerald-400">
+                  <Zap className="h-3.5 w-3.5 fill-current" />
+                  {miner.guardian_active_profile}
+                </span>
+              )}
               {standbyState !== 'mining' && (
                 <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600">
                   {standbyState === 'pausing'

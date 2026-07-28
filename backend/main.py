@@ -1917,6 +1917,7 @@ async def api_guardian_status(miner_id: int) -> dict:
         "supports_voltage": bool(caps.get("set_voltage")),
         "voltage_master": g.v2_voltage_enabled,
         "current_freq_mhz": current,
+        "active_profile": miner.get("guardian_active_profile"),
         "defaults": {
             "interval_seconds": g.interval_seconds,
             "vr_high_c": g.vr_high_c,
@@ -2131,7 +2132,9 @@ async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> 
     if not freq:
         raise HTTPException(400, f"No stable {payload.profile} profile point found in benchmark run")
 
+    prof_name = "Max Efficiency (Benchmark)" if payload.profile == "max_efficiency" else "Max Hashrate (Benchmark)"
     await db.set_guardian_config(miner_id, max_freq_mhz=freq)
+    await db.set_active_guardian_profile(miner_id, prof_name)
     guardian.reset_miner(miner_id)
 
     try:
@@ -2139,7 +2142,7 @@ async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> 
     except Exception as e:
         logger.warning("Failed applying profile freq/volt: %s", e)
 
-    return {"ok": True, "applied_profile": payload.profile, "freq_mhz": freq, "voltage_mv": volt}
+    return {"ok": True, "applied_profile": prof_name, "freq_mhz": freq, "voltage_mv": volt}
 
 
 @app.delete("/api/miners/{miner_id}/benchmark")
@@ -2206,6 +2209,7 @@ async def api_apply_guardian_profile(miner_id: int, profile_id: int) -> dict:
         max_power_w=max_power,
         fan_max_override=fan_max,
     )
+    await db.set_active_guardian_profile(miner_id, target["name"])
     guardian.reset_miner(miner_id)
 
     if freq and volt:

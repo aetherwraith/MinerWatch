@@ -675,12 +675,20 @@ export function GuardianPanel({ data }: Props) {
       </Dialog>
 
       {/* Guardian Profiles & Scheduled Profile Switcher */}
-      <GuardianProfilesAndSchedules minerId={miner.id} currentFreq={currentFreq} />
+      <GuardianProfilesAndSchedules minerId={miner.id} currentFreq={currentFreq} activeProfile={s?.active_profile} />
     </Card>
   );
 }
 
-function GuardianProfilesAndSchedules({ minerId, currentFreq }: { minerId: number; currentFreq: number | null }) {
+function GuardianProfilesAndSchedules({
+  minerId,
+  currentFreq,
+  activeProfile,
+}: {
+  minerId: number;
+  currentFreq: number | null;
+  activeProfile?: string | null;
+}) {
   const { data: profData } = useGuardianProfiles(minerId);
   const { data: schedData } = useGuardianSchedules(minerId);
   const saveProfile = useSaveGuardianProfile(minerId);
@@ -729,51 +737,67 @@ function GuardianProfilesAndSchedules({ minerId, currentFreq }: { minerId: numbe
 
       {/* Profiles Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-        {profiles.map((p) => (
-          <div key={p.id} className="p-3 rounded-lg border border-border/60 bg-muted/20 flex flex-col justify-between gap-2">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-foreground">{p.name}</span>
-                {p.is_benchmark ? (
-                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                    Benchmark
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="text-[10px]">Custom</Badge>
+        {profiles.map((p) => {
+          const isActive = activeProfile === p.name;
+          return (
+            <div
+              key={p.id}
+              className={`p-3 rounded-lg border flex flex-col justify-between gap-2 transition-colors ${
+                isActive ? 'border-emerald-500 bg-emerald-500/10' : 'border-border/60 bg-muted/20'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-semibold text-foreground truncate">{p.name}</span>
+                  {isActive ? (
+                    <Badge className="bg-emerald-500 text-slate-950 font-bold text-[10px] shrink-0">
+                      Active Now
+                    </Badge>
+                  ) : p.is_benchmark ? (
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shrink-0">
+                      Benchmark
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px] shrink-0">
+                      Custom
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5 font-mono">
+                  {p.max_freq_mhz && <div>Freq: {p.max_freq_mhz} MHz</div>}
+                  {p.voltage_mv && <div>Voltage: {p.voltage_mv} mV</div>}
+                  {p.fan_max_pct && <div>Max Fan: {p.fan_max_pct}%</div>}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                <Button
+                  variant={isActive ? 'default' : 'subtle'}
+                  size="sm"
+                  onClick={() => applyProfile.mutate(p.id)}
+                  disabled={applyProfile.isPending || isActive}
+                  className={`h-7 text-[11px] px-2.5 gap-1 ${
+                    isActive ? 'bg-emerald-600 text-white opacity-80' : 'text-emerald-400 hover:text-emerald-300'
+                  }`}
+                >
+                  <Play className="h-3 w-3 fill-current" />
+                  {isActive ? 'Active' : 'Apply Now'}
+                </Button>
+                {!p.is_benchmark && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteProfile.mutate(p.id)}
+                    disabled={deleteProfile.isPending}
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
                 )}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5 font-mono">
-                {p.max_freq_mhz && <div>Freq: {p.max_freq_mhz} MHz</div>}
-                {p.voltage_mv && <div>Voltage: {p.voltage_mv} mV</div>}
-                {p.fan_max_pct && <div>Max Fan: {p.fan_max_pct}%</div>}
-              </div>
             </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-border/40">
-              <Button
-                variant="subtle"
-                size="sm"
-                onClick={() => applyProfile.mutate(p.id)}
-                disabled={applyProfile.isPending}
-                className="h-7 text-[11px] px-2.5 gap-1 text-emerald-400 hover:text-emerald-300"
-              >
-                <Play className="h-3 w-3 fill-current" />
-                Apply Now
-              </Button>
-              {!p.is_benchmark && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteProfile.mutate(p.id)}
-                  disabled={deleteProfile.isPending}
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Form: Save Current Settings as Profile */}

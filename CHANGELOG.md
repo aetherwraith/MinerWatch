@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.32.1] — 2026-07-28
+
+### Added
+
+- **Active Profile Indicators.** Displayed active Guardian profile badges (e.g. `⚡ Quiet Profile (Day)`, `⚡ Max Efficiency (Benchmark)`) directly on the miner's card on the Home Page and next to the miner's name on the Miner Detail Header.
+- **Active Profile Card Highlighting.** Highlighted active profile cards in the Guardian Panel with distinct emerald styling and an `Active Now` indicator badge.
+
 ## [1.32.0] — 2026-07-28
 
 ### Added

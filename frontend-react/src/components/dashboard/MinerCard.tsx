@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BellOff } from 'lucide-react';
+import { BellOff, Zap } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -43,11 +43,6 @@ export function MinerCard({ miner }: Props) {
   // Offline alerts silenced on purpose (powered down by the user). Show a
   // muted badge next to the offline status so the silence is never invisible.
   const muted = offline && !!miner.offline_muted;
-  // In standby the firmware keeps INA260 power/current/voltage, VR temp and
-  // fan RPM live (real idle ~1.5 W) and zeroes the ASIC chip temps, which the
-  // driver maps to None → "—". So there's nothing stale to blank: live values
-  // are shown, chip temp self-blanks. (Pre-fix6 firmware froze them and we
-  // blanked here — no longer needed.)
 
   const familyLabel = FAMILY_LABEL[miner.family] ?? miner.family;
 
@@ -58,15 +53,17 @@ export function MinerCard({ miner }: Props) {
     >
       <Card className="h-full p-4 transition-colors hover:bg-card/80 hover:border-border-strong">
         <header className="flex items-start justify-between gap-3">
-          {/* Left gutter (pl-7) reserves room for the drag handle drawn
-              by SortableMinerCard. The handle is 28 px wide and sits at
-              left-2; pl-7 (1.75 rem) lines the name up just to its
-              right, so visually they read as "[handle] miner name". */}
           <div className="min-w-0 pl-7">
             <div className="truncate font-semibold">{miner.name}</div>
             <div className="truncate text-xs text-muted-foreground">
               {familyLabel} · {miner.host}
             </div>
+            {miner.guardian_active_profile && (
+              <div className="mt-1 flex items-center gap-1 text-[11px] font-mono font-medium text-emerald-400">
+                <Zap className="h-3 w-3 fill-current" />
+                <span className="truncate">{miner.guardian_active_profile}</span>
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {muted && (

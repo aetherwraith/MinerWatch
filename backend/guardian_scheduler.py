@@ -99,13 +99,14 @@ async def check_and_execute_schedules() -> None:
         )
 
         try:
-            # Update Guardian DB config
+            # Update Guardian DB config and active profile name
             await db.set_guardian_config(
                 miner_id,
                 max_freq_mhz=freq,
                 max_power_w=max_power,
                 fan_max_override=fan_max,
             )
+            await db.set_active_guardian_profile(miner_id, profile_name)
 
             # Reset Guardian governor state
             guardian.reset_miner(miner_id)
