@@ -326,6 +326,7 @@ class _GuardianState:
         "last_reject_pct",
         "last_temp_c",
         "last_ts",
+        "pinned_fan",
         "prev_accepted",
         "prev_hw_errors",
         "prev_rejected",
@@ -348,28 +349,13 @@ class _GuardianState:
         self.consecutive_holds: int = 0
         self.is_tuning: bool = True
         self.was_tuning: bool = False
+        self.pinned_fan: int | None = None
 
 
 def _reject_pct(
     state: _GuardianState, sample: MinerSample, min_shares: int
 ) -> float | None:
-    """Rejected-share % over the interval = Δrejected / Δ(acc+rej) × 100, or None.
-
-    Replaces the old errorCount/total HW% which was wrong on AxeOS: the
-    hashrateMonitor ``total`` field is the *hashrate*, not a work counter, so
-    dividing the cumulative error count by it produced absurd values (>100%).
-    Rejected shares (``sharesRejected`` / ``sharesAccepted``) are genuine
-    monotonic counters available on every AxeOS family, and their ratio sits
-    in the right ballpark (well under 1% on a healthy miner).
-
-    Computed as a *windowed* delta (instability shows up as a burst of fresh
-    rejects), guarded by ``min_shares``: if too few shares landed in the
-    interval the rate is statistically meaningless, so we return None (the
-    caller then governs on VR alone this tick). Returns None on the first
-    tick (no baseline) and on a counter reset (miner rebooted).
-
-    Side effect: advances the stored baseline to the current counters.
-    """
+    """Rejected-share % over the interval = Δrejected / Δ(acc+rej) × 100, or None."""
     acc = sample.accepted
     rej = sample.rejected
     prev_a = state.prev_accepted
@@ -379,7 +365,7 @@ def _reject_pct(
     if (
         acc is not None and rej is not None
         and prev_a is not None and prev_r is not None
-        and acc >= prev_a and rej >= prev_r  # guard against counter resets
+        and acc >= prev_a and rej >= prev_r
     ):
         d_acc = acc - prev_a
         d_rej = rej - prev_r
@@ -387,17 +373,18 @@ def _reject_pct(
         if d_tot >= max(1, int(min_shares)):
             pct = (d_rej / d_tot) * 100.0
 
-    # Advance the baseline (also resets cleanly after a detected reset).
     state.prev_accepted = acc
     state.prev_rejected = rej
     return pct
 
 
 # ============================================================================
-# Guardian controller (one slow loop for the whole fleet)
+# Controller (singleton in main.py)
 # ============================================================================
 
 class GuardianController:
+    """Async wrapper managing per-miner loops."""
+
     def __init__(self) -> None:
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
@@ -441,6 +428,16 @@ class GuardianController:
             sample = _poller.last_results.get(int(miner_id))
             if sample:
                 await self._eval_miner(m, sample, time.time())
+            else:
+                cfg = get_config()
+                drv = driver_for_record({**m, "timeout": cfg.polling.request_timeout})
+                if drv.can_set_fan:
+                    fan_max = int(m.get("fan_max_override") or 100)
+                    try:
+                        await drv.set_fan_speed(fan_max)
+                        log.info("guardian: miner=%s enabled → immediately pinned device fan to %d%%", m.get("name"), fan_max)
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("guardian: miner=%s set_fan_speed failed on enable: %s", m.get("name"), exc)
 
     def reset_miner(self, miner_id: int) -> None:
         """Drop a miner's in-memory governor state (soft ceiling, reject-rate
@@ -647,12 +644,11 @@ class GuardianController:
             fan_max = int(miner.get("fan_max_override") or 100)
             if state.is_tuning:
                 state.was_tuning = True
-                current_fan = float(sample.fan_pct) if sample.fan_pct is not None else 0.0
-                autofan_active = bool(getattr(sample, "autofanspeed", 0))
-                if current_fan < fan_max or autofan_active:
+                if state.pinned_fan != fan_max:
                     try:
                         ok_fan = await drv.set_fan_speed(fan_max)
                         if ok_fan:
+                            state.pinned_fan = fan_max
                             log.info(
                                 "guardian: miner=%s tuning active → pinned device fan to %d%%",
                                 miner.get("name"), fan_max,
@@ -661,6 +657,7 @@ class GuardianController:
                         log.warning("guardian: miner=%s set_fan_speed failed: %s", miner.get("name"), exc)
             elif getattr(state, "was_tuning", False):
                 state.was_tuning = False
+                state.pinned_fan = None
                 mode = (miner.get("fan_mode") or "firmware").lower()
                 if mode == "firmware":
                     try:
@@ -853,7 +850,7 @@ class GuardianController:
 
         if target == int(current_freq):
             state.consecutive_holds += 1
-            if state.consecutive_holds >= 2:
+            if state.consecutive_holds >= 3:
                 state.is_tuning = False
             self._publish(miner_id, miner, current_freq, temp_c, reject_pct,
                           reason, changed=False, ceiling=eff_ceiling, floor=floor,
