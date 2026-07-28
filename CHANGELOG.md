@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.30.19] — 2026-07-28
+
+### Fixed
+
+- **Clean pytest process shutdown.** Added a `pytest_unconfigure` hook in `conftest.py` that forces clean process termination upon test suite completion, preventing orphaned background worker threads from hanging pytest execution.
+
 ## [1.30.18] — 2026-07-28
 
 ### Added
