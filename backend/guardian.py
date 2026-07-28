@@ -885,6 +885,20 @@ class GuardianController:
                           reason, changed=False, ceiling=eff_ceiling, floor=floor,
                           source=source, vr_temp_c=temp_vr_c, chip_temp_c=temp_chip_c,
                           soft_ceiling=state.soft_ceiling, **tele)
+            try:
+                await db.insert_governor_decision(
+                    miner_id=miner_id,
+                    governor_type="guardian",
+                    action_taken="HOLD",
+                    reason=reason,
+                    chip_temp=temp_chip_c,
+                    vr_temp=temp_vr_c,
+                    target_chip_temp=chip_high,
+                    target_vr_temp=vr_high,
+                    details={"freq": int(current_freq), "consecutive_holds": state.consecutive_holds, "is_tuning": state.is_tuning},
+                )
+            except Exception:  # noqa: BLE001
+                pass
             return
 
         state.consecutive_holds = 0
@@ -897,6 +911,20 @@ class GuardianController:
                           ceiling=eff_ceiling, floor=floor, source=source,
                           vr_temp_c=temp_vr_c, chip_temp_c=temp_chip_c,
                           soft_ceiling=state.soft_ceiling, **tele)
+            try:
+                await db.insert_governor_decision(
+                    miner_id=miner_id,
+                    governor_type="guardian",
+                    action_taken="COOLDOWN",
+                    reason=f"cooldown ({reason})",
+                    chip_temp=temp_chip_c,
+                    vr_temp=temp_vr_c,
+                    target_chip_temp=chip_high,
+                    target_vr_temp=vr_high,
+                    details={"freq": int(current_freq)},
+                )
+            except Exception:  # noqa: BLE001
+                pass
             return
 
         drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
