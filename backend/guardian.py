@@ -288,7 +288,12 @@ def decide_point(
         if v >= volt_ceiling_mv:
             v_reason = "V maxed"
         elif not temp_ok:
-            v_reason = "temp near limit"
+            if vr_c is not None and vr_temp_high_c is not None and round(vr_c, 1) > round(vr_temp_high_c - 2, 1):
+                v_reason = f"VR temp ({vr_c:.1f}°C) near limit"
+            elif chip_c is not None and chip_temp_high_c is not None and round(chip_c, 1) > round(chip_temp_high_c - 2, 1):
+                v_reason = f"chip temp ({chip_c:.1f}°C) near limit"
+            else:
+                v_reason = "temp near limit"
         elif not power_ok:
             v_reason = "power near limit"
         else:
