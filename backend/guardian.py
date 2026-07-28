@@ -330,6 +330,7 @@ class _GuardianState:
         "prev_hw_errors",
         "prev_rejected",
         "soft_ceiling",
+        "was_tuning",
     )
 
     def __init__(self) -> None:
@@ -346,6 +347,7 @@ class _GuardianState:
         self.last_hashrate: float | None = None
         self.consecutive_holds: int = 0
         self.is_tuning: bool = True
+        self.was_tuning: bool = False
 
 
 def _reject_pct(
@@ -636,6 +638,36 @@ class GuardianController:
         eff_ceiling = ceiling
         if state.soft_ceiling is not None:
             eff_ceiling = min(eff_ceiling, int(state.soft_ceiling))
+
+        # Hardware Fan Pinning: When Guardian is tuning frequency (is_tuning is True),
+        # directly pin the fan speed on the device to max (100% or override) so thermal baseline is constant.
+        # Once Guardian settles (is_tuning is False), release fan control back to auto-fan.
+        drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
+        if drv.can_set_fan:
+            fan_max = int(miner.get("fan_max_override") or 100)
+            if state.is_tuning:
+                state.was_tuning = True
+                current_fan = float(sample.fan_pct) if sample.fan_pct is not None else 0.0
+                autofan_active = bool(getattr(sample, "autofanspeed", 0))
+                if current_fan < fan_max or autofan_active:
+                    try:
+                        ok_fan = await drv.set_fan_speed(fan_max)
+                        if ok_fan:
+                            log.info(
+                                "guardian: miner=%s tuning active → pinned device fan to %d%%",
+                                miner.get("name"), fan_max,
+                            )
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("guardian: miner=%s set_fan_speed failed: %s", miner.get("name"), exc)
+            elif getattr(state, "was_tuning", False):
+                state.was_tuning = False
+                mode = (miner.get("fan_mode") or "firmware").lower()
+                if mode != "minerwatch":
+                    try:
+                        await drv.set_auto_fan(True, target_temp_c=chip_high)
+                        log.info("guardian: miner=%s settled → released device fan to firmware auto-fan", miner.get("name"))
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("guardian: miner=%s set_auto_fan failed: %s", miner.get("name"), exc)
 
         expected_ths = sample.expected_hashrate_ths
         if expected_ths is None:
