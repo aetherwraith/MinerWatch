@@ -529,6 +529,45 @@ class AutoFanController:
             state = _MinerState()
             _states[miner_id] = state
 
+        # Check if Guardian frequency governor is actively searching/tuning on this miner
+        from .guardian import guardian as _guardian
+        if miner.get("guardian_enabled") and _guardian.is_tuning(miner_id):
+            raw_temp = float(sample.temp_chip_c) if sample.temp_chip_c is not None else 0.0
+            new_pct1 = fan_max
+            new_pct2 = fan_max
+            last1 = state.last_commanded_pct or new_pct1
+            last2 = state.last_commanded_pct2 or new_pct2
+            if abs(new_pct1 - last1) >= APPLY_THRESHOLD or abs(new_pct2 - last2) >= APPLY_THRESHOLD:
+                cfg = get_config()
+                drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
+                if drv.can_set_fan:
+                    try:
+                        ok = await drv.set_fan_speed(new_pct1, percent2=new_pct2)
+                        if ok:
+                            state.last_commanded_pct = new_pct1
+                            state.last_commanded_pct2 = new_pct2
+                            log.info(
+                                "auto-fan miner=%s: Guardian frequency tuning active → pinning fan to max (%d%%)",
+                                miner["name"], fan_max,
+                            )
+                            try:
+                                await db.insert_governor_decision(
+                                    miner_id=miner_id,
+                                    governor_type="autofan",
+                                    action_taken="FAN_PIN_MAX",
+                                    reason=f"Guardian frequency tuning active → pinning fan to max ({fan_max}%)",
+                                    chip_temp=raw_temp,
+                                    vr_temp=sample.temp_vr_c,
+                                    target_chip_temp=target_asic,
+                                    target_vr_temp=target_vr,
+                                    details={"fan1_pct": new_pct1, "fan2_pct": new_pct2, "is_tuning": True},
+                                )
+                            except Exception:  # noqa: BLE001
+                                pass
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("miner %s: set_fan_speed failed: %s", miner["id"], exc)
+            return
+
         # Determine current running firmware fan speed as baseline floor
         fw_fan1 = float(sample.fan_pct) if sample.fan_pct is not None and sample.fan_pct > 0 else 0.0
         fw_fan2 = float(sample.fan_pct_2) if sample.fan_pct_2 is not None and sample.fan_pct_2 > 0 else fw_fan1

@@ -67,6 +67,25 @@ def test_deadband_holds():
     assert "hold" in reason
 
 
+def test_temp_at_limit_holds():
+    # Exactly at target temp (70.0) → hold in deadband, do not step down.
+    target, reason = decide(current_freq=550, temp_c=70.0, hw_error_pct=0.0)
+    assert target == 550
+    assert "hold" in reason
+
+
+def test_temp_rounding_prevents_false_trigger():
+    # 70.04 rounds to 70.0 (not > 70.0) → holds, doesn't print 70.0 > 70.0
+    target, reason = decide(current_freq=550, temp_c=70.04, hw_error_pct=0.0)
+    assert target == 550
+    assert "hold" in reason
+
+    # 70.06 rounds to 70.1 (> 70.0) → steps down and prints 70.1°C > 70.0°C
+    target, reason = decide(current_freq=550, temp_c=70.06, hw_error_pct=0.0)
+    assert target == 530
+    assert "70.1°C > 70.0°C" in reason
+
+
 def test_up_step_capped_at_ceiling():
     # Cool VR wants +10 but we're at the ceiling already → hold.
     target, reason = decide(current_freq=600, temp_c=60.0, hw_error_pct=0.0)

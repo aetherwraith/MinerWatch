@@ -131,16 +131,20 @@ def decide_frequency(
 
     # 1..3 — the control law. Priority: back off on heat (VR then Chip),
     # then on instability, and only otherwise try to recover frequency.
-    if vr_temp_c is not None and vr_high_c is not None and vr_temp_c > vr_high_c:
+    vr_over = vr_temp_c is not None and vr_high_c is not None and round(vr_temp_c, 1) > round(vr_high_c, 1)
+    chip_over = chip_temp_c is not None and chip_high_c is not None and round(chip_temp_c, 1) > round(chip_high_c, 1)
+    legacy_over = temp_c is not None and temp_high_c is not None and round(temp_c, 1) > round(temp_high_c, 1)
+
+    if vr_over:
         target = current_freq - step_down_temp_mhz
-        reason = f"VR {vr_temp_c:.1f}°C > {vr_high_c:.0f}°C → -{step_down_temp_mhz} MHz"
-    elif chip_temp_c is not None and chip_high_c is not None and chip_temp_c > chip_high_c:
+        reason = f"VR {vr_temp_c:.1f}°C > {vr_high_c:.1f}°C → -{step_down_temp_mhz} MHz"
+    elif chip_over:
         target = current_freq - step_down_temp_mhz
-        reason = f"Chip {chip_temp_c:.1f}°C > {chip_high_c:.0f}°C → -{step_down_temp_mhz} MHz"
-    elif temp_c is not None and temp_high_c is not None and temp_c > temp_high_c:
+        reason = f"Chip {chip_temp_c:.1f}°C > {chip_high_c:.1f}°C → -{step_down_temp_mhz} MHz"
+    elif legacy_over:
         target = current_freq - step_down_temp_mhz
         reason = (
-            f"{source_label} {temp_c:.1f}°C > {temp_high_c:.0f}°C "
+            f"{source_label} {temp_c:.1f}°C > {temp_high_c:.1f}°C "
             f"→ -{step_down_temp_mhz} MHz"
         )
     elif hashrate_invalid:
@@ -155,9 +159,9 @@ def decide_frequency(
         )
     else:
         # Check recovery condition: all active sensors must be cool and fan overhead must exist.
-        vr_cool = vr_temp_c is None or vr_high_c is None or vr_low_c is None or vr_temp_c < vr_low_c
-        chip_cool = chip_temp_c is None or chip_high_c is None or chip_low_c is None or chip_temp_c < chip_low_c
-        legacy_cool = temp_c is None or temp_high_c is None or temp_low_c is None or temp_c < temp_low_c
+        vr_cool = vr_temp_c is None or vr_high_c is None or vr_low_c is None or round(vr_temp_c, 1) < round(vr_low_c, 1)
+        chip_cool = chip_temp_c is None or chip_high_c is None or chip_low_c is None or round(chip_temp_c, 1) < round(chip_low_c, 1)
+        legacy_cool = temp_c is None or temp_high_c is None or temp_low_c is None or round(temp_c, 1) < round(temp_low_c, 1)
         has_temp_reading = vr_temp_c is not None or chip_temp_c is not None or temp_c is not None
         fan_overhead_ok = fan_pct is None or fan_pct < max_fan_pct
 
@@ -168,11 +172,11 @@ def decide_frequency(
             if vr_temp_c is not None and chip_temp_c is not None and vr_low_c is not None and chip_low_c is not None:
                 reason = f"VR {vr_temp_c:.1f}°C & Chip {chip_temp_c:.1f}°C cool → +{step_up_mhz} MHz"
             elif vr_temp_c is not None and vr_low_c is not None:
-                reason = f"VR {vr_temp_c:.1f}°C < {vr_low_c:.0f}°C → +{step_up_mhz} MHz"
+                reason = f"VR {vr_temp_c:.1f}°C < {vr_low_c:.1f}°C → +{step_up_mhz} MHz"
             elif chip_temp_c is not None and chip_low_c is not None:
-                reason = f"Chip {chip_temp_c:.1f}°C < {chip_low_c:.0f}°C → +{step_up_mhz} MHz"
+                reason = f"Chip {chip_temp_c:.1f}°C < {chip_low_c:.1f}°C → +{step_up_mhz} MHz"
             else:
-                reason = f"{source_label} {temp_c:.1f}°C < {temp_low_c:.0f}°C → +{step_up_mhz} MHz"
+                reason = f"{source_label} {temp_c:.1f}°C < {temp_low_c:.1f}°C → +{step_up_mhz} MHz"
         else:
             return current_freq, "hold (within deadband)"
 
@@ -239,10 +243,10 @@ def decide_point(
 
     # 1. Hard safety cutoffs — back BOTH levers off at once.
     hard = None
-    if chip_c is not None and chip_c >= chip_cutoff_c:
-        hard = f"chip {chip_c:.0f}°C ≥ {chip_cutoff_c:.0f}"
-    elif vr_c is not None and vr_c >= vr_cutoff_c:
-        hard = f"VR {vr_c:.0f}°C ≥ {vr_cutoff_c:.0f}"
+    if chip_c is not None and round(chip_c, 1) >= round(chip_cutoff_c, 1):
+        hard = f"chip {chip_c:.1f}°C ≥ {chip_cutoff_c:.1f}°C"
+    elif vr_c is not None and round(vr_c, 1) >= round(vr_cutoff_c, 1):
+        hard = f"VR {vr_c:.1f}°C ≥ {vr_cutoff_c:.1f}°C"
     elif power_cutoff_w and power_w is not None and power_w >= power_cutoff_w:
         hard = f"power {power_w:.0f}W ≥ {power_cutoff_w:.0f}W"
     elif vin_mv is not None and (vin_mv < vin_min_mv or vin_mv > vin_max_mv):
@@ -255,9 +259,9 @@ def decide_point(
         return nf, nv, f"safety: {hard} → back off"
 
     # 2. Temperature over user limits → co-move down the V/F curve.
-    vr_over = vr_c is not None and vr_temp_high_c is not None and vr_c > vr_temp_high_c
-    chip_over = chip_c is not None and chip_temp_high_c is not None and chip_c > chip_temp_high_c
-    legacy_over = temp_c is not None and temp_high_c is not None and temp_c > temp_high_c
+    vr_over = vr_c is not None and vr_temp_high_c is not None and round(vr_c, 1) > round(vr_temp_high_c, 1)
+    chip_over = chip_c is not None and chip_temp_high_c is not None and round(chip_c, 1) > round(chip_temp_high_c, 1)
+    legacy_over = temp_c is not None and temp_high_c is not None and round(temp_c, 1) > round(temp_high_c, 1)
     if vr_over or chip_over or legacy_over:
         nf = max(floor_mhz, f - step_down_mhz)
         nv = max(volt_floor_mv, v - step_volt_mv)
@@ -266,7 +270,7 @@ def decide_point(
         lbl = "VR" if vr_over else ("Chip" if chip_over else "temp")
         val = vr_c if vr_over else (chip_c if chip_over else temp_c)
         hi = vr_temp_high_c if vr_over else (chip_temp_high_c if chip_over else temp_high_c)
-        return nf, nv, f"{lbl} {val:.1f}°C > {hi:.0f}°C → back off"
+        return nf, nv, f"{lbl} {val:.1f}°C > {hi:.1f}°C → back off"
 
     # 3. Instability → cure with voltage if there's thermal+power+fan headroom
     if hashrate_invalid:
@@ -274,9 +278,9 @@ def decide_point(
             not power_cutoff_w or power_w is None or power_w < power_cutoff_w * 0.92
         )
         temp_ok = (
-            (vr_c is None or vr_temp_high_c is None or vr_c <= vr_temp_high_c - 2)
-            and (chip_c is None or chip_temp_high_c is None or chip_c <= chip_temp_high_c - 2)
-            and (temp_c is None or temp_high_c is None or temp_c <= temp_high_c - 2)
+            (vr_c is None or vr_temp_high_c is None or round(vr_c, 1) <= round(vr_temp_high_c - 2, 1))
+            and (chip_c is None or chip_temp_high_c is None or round(chip_c, 1) <= round(chip_temp_high_c - 2, 1))
+            and (temp_c is None or temp_high_c is None or round(temp_c, 1) <= round(temp_high_c - 2, 1))
         )
         fan_ok = fan_pct is None or fan_pct < max_fan_pct
         if v < volt_ceiling_mv and power_ok and temp_ok and fan_ok:
@@ -290,9 +294,9 @@ def decide_point(
         return nf, v, f"{instability_label}, V maxed → -{f - nf} MHz"
 
     # 4. Valid and cool → push frequency up for more hashrate (if fan overhead exists)
-    vr_cool = vr_c is None or vr_temp_low_c is None or vr_c < vr_temp_low_c
-    chip_cool = chip_c is None or chip_temp_low_c is None or chip_c < chip_temp_low_c
-    legacy_cool = temp_c is None or temp_low_c is None or temp_c < temp_low_c
+    vr_cool = vr_c is None or vr_temp_low_c is None or round(vr_c, 1) < round(vr_temp_low_c, 1)
+    chip_cool = chip_c is None or chip_temp_low_c is None or round(chip_c, 1) < round(chip_temp_low_c, 1)
+    legacy_cool = temp_c is None or temp_low_c is None or round(temp_c, 1) < round(temp_low_c, 1)
     if valid and vr_cool and chip_cool and legacy_cool and f < ceiling_mhz:
         if fan_pct is not None and fan_pct >= max_fan_pct:
             return f, v, f"cool but fan at max capacity ({fan_pct:.0f}%) → hold frequency"
@@ -313,6 +317,8 @@ class _GuardianState:
     """Mutable per-miner state the loop carries between ticks."""
 
     __slots__ = (
+        "consecutive_holds",
+        "is_tuning",
         "last_change_ts",
         "last_commanded_freq",
         "last_hashrate",
@@ -335,14 +341,11 @@ class _GuardianState:
         self.last_ts: float = 0.0
         self.last_temp_c: float | None = None
         self.last_reject_pct: float | None = None
-        # In-memory ceiling pinned below a frequency that proved unstable, so
-        # recovery can't climb back into it. Never written to the DB; resets
-        # when the miner drops out of the loop (offline/disabled).
         self.soft_ceiling: int | None = None
-        # Previous ASIC error counter, for the per-interval delta surfaced in
-        # the live readout.
         self.prev_hw_errors: int | None = None
         self.last_hashrate: float | None = None
+        self.consecutive_holds: int = 0
+        self.is_tuning: bool = True
 
 
 def _reject_pct(
@@ -420,6 +423,13 @@ class GuardianController:
 
     def status(self, miner_id: int) -> dict[str, Any] | None:
         return self._status.get(int(miner_id))
+
+    def is_tuning(self, miner_id: int) -> bool:
+        """Return True if Guardian is actively searching/tuning frequency for miner_id."""
+        st = self._states.get(int(miner_id))
+        if st is None:
+            return False
+        return st.is_tuning
 
     def reset_miner(self, miner_id: int) -> None:
         """Drop a miner's in-memory governor state (soft ceiling, reject-rate
@@ -798,11 +808,17 @@ class GuardianController:
             )
 
         if target == int(current_freq):
+            state.consecutive_holds += 1
+            if state.consecutive_holds >= 2:
+                state.is_tuning = False
             self._publish(miner_id, miner, current_freq, temp_c, reject_pct,
                           reason, changed=False, ceiling=eff_ceiling, floor=floor,
                           source=source, vr_temp_c=temp_vr_c, chip_temp_c=temp_chip_c,
                           soft_ceiling=state.soft_ceiling, **tele)
             return
+
+        state.consecutive_holds = 0
+        state.is_tuning = True
 
         cooldown = int(gcfg.cooldown_seconds or 0)
         if cooldown > 0 and (now - state.last_change_ts) < cooldown:
