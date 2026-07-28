@@ -7,17 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.30.4] — 2026-07-28
+## [1.30.7] — 2026-07-28
 
 ### Added
 
-- **Simultaneous VR and ASIC chip temperature guardian.** Guardian now monitors both VR and ASIC chip temperatures simultaneously, stepping down frequency if either exceeds target limits and recovering frequency only when both sensors cool.
-- **Fan pinning and co-tuning hand-off.** Guardian pins hardware fan speed to 100% while actively tuning frequency to maintain a stable thermal baseline, then hands control back to firmware auto-fan or MinerWatch auto-fan once settled.
+- **Simultaneous VR and ASIC temperature guardian.** Guardian monitors both VR and ASIC chip temperatures at the same time, stepping down frequency if either exceeds limit.
+- **Fan pinning and co-tuning hand-off.** Hardware fans pin to 100% while Guardian actively tunes frequency, handing back control to firmware or PID once settled.
+- **Decision log tracking for fan events.** Fan pinning and fan release events are recorded directly into the Governor Decisions log and live feed.
 
 ### Fixed
 
 - **Improved temperature comparison precision.** Temperature threshold evaluations use 1-decimal rounding to prevent floating-point noise from triggering false step-down actions.
 - **Immediate fan takeover on enable.** Disabling and re-enabling Guardian immediately triggers fan pinning and evaluation without waiting for periodic interval ticks.
+
 
 
 ## [1.19.5] — 2026-06-29
