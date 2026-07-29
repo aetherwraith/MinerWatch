@@ -382,7 +382,7 @@ async def _run_benchmark_sweep(
             # Max Hashrate = highest TH/s
             best_hash = max(stable_samples, key=lambda s: s["hashrate_ths"] or 0.0)
 
-            # Best Quiet = highest efficiency candidate where settled fan speed <= quiet_fan_max_pct
+            # Best Quiet = max performance (highest TH/s) candidate where settled fan speed <= quiet_fan_max_pct
             quiet_max_fan = config.get("quiet_fan_max_pct")
             if quiet_max_fan is not None:
                 quiet_cands = [
@@ -390,7 +390,7 @@ async def _run_benchmark_sweep(
                     if s.get("fan_pct") is not None and s["fan_pct"] <= float(quiet_max_fan)
                 ]
                 if quiet_cands:
-                    best_quiet = min(quiet_cands, key=lambda s: s["efficiency_j_th"] or 9999.0)
+                    best_quiet = max(quiet_cands, key=lambda s: s["hashrate_ths"] or 0.0)
 
         status_str = "completed" if not _abort_flags.get(miner_id) else "aborted"
         await db.update_miner_benchmark(

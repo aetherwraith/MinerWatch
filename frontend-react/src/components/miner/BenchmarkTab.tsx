@@ -299,7 +299,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   Acoustic Quiet
                 </Badge>
               </div>
-              <CardDescription>Highest efficiency where Fan ≤ {latestRun.quiet_fan_max_pct ?? 65}%</CardDescription>
+              <CardDescription>Max performance (TH/s) where Fan ≤ {latestRun.quiet_fan_max_pct ?? 65}%</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2 text-xs">
