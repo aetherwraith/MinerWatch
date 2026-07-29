@@ -246,6 +246,8 @@ async def _run_benchmark_sweep(
             hw_err = _avg("error_pct") or 0.0
             rej_pct = _avg("reject_pct") or 0.0
 
+            fan_t = _avg("fan_pct")
+
             # Combine chip hardware error rate and pool share rejection rate
             effective_err_rate = max(hw_err, rej_pct)
 
@@ -260,6 +262,7 @@ async def _run_benchmark_sweep(
                 "efficiency_j_th": round(j_th, 2) if j_th is not None else None,
                 "chip_temp_c": round(chip_t, 1) if chip_t is not None else None,
                 "vr_temp_c": round(vr_t, 1) if vr_t is not None else None,
+                "fan_pct": round(fan_t, 1) if fan_t is not None else None,
                 "error_rate_pct": round(effective_err_rate, 2),
                 "stable": is_stable,
                 "abort_reason": abort_reason if not is_stable else None,
@@ -344,6 +347,7 @@ async def _run_benchmark_sweep(
                     power = _m_avg("power_w") or 0.0
                     chip_t = _m_avg("temp_chip_c")
                     vr_t = _m_avg("temp_vr_c")
+                    m_fan_t = _m_avg("fan_pct")
                     hw_err = _m_avg("error_pct") or 0.0
                     rej_pct = _m_avg("reject_pct") or 0.0
                     eff_err = max(hw_err, rej_pct)
@@ -358,6 +362,7 @@ async def _run_benchmark_sweep(
                         "efficiency_j_th": round(j_th, 2) if j_th is not None else None,
                         "chip_temp_c": round(chip_t, 1) if chip_t is not None else None,
                         "vr_temp_c": round(vr_t, 1) if vr_t is not None else None,
+                        "fan_pct": round(m_fan_t, 1) if m_fan_t is not None else None,
                         "error_rate_pct": round(eff_err, 2),
                         "stable": is_stable,
                         "abort_reason": m_abort_reason if not is_stable else None,
@@ -369,12 +374,23 @@ async def _run_benchmark_sweep(
         # Sweep finished — calculate best profiles
         best_eff = None
         best_hash = None
+        best_quiet = None
 
         if stable_samples:
             # Max Efficiency = lowest J/TH
             best_eff = min(stable_samples, key=lambda s: s["efficiency_j_th"] or 9999.0)
             # Max Hashrate = highest TH/s
             best_hash = max(stable_samples, key=lambda s: s["hashrate_ths"] or 0.0)
+
+            # Best Quiet = highest efficiency candidate where settled fan speed <= quiet_fan_max_pct
+            quiet_max_fan = config.get("quiet_fan_max_pct")
+            if quiet_max_fan is not None:
+                quiet_cands = [
+                    s for s in stable_samples
+                    if s.get("fan_pct") is not None and s["fan_pct"] <= float(quiet_max_fan)
+                ]
+                if quiet_cands:
+                    best_quiet = min(quiet_cands, key=lambda s: s["efficiency_j_th"] or 9999.0)
 
         status_str = "completed" if not _abort_flags.get(miner_id) else "aborted"
         await db.update_miner_benchmark(
@@ -383,6 +399,7 @@ async def _run_benchmark_sweep(
             current_step=len(combinations),
             best_eff=best_eff,
             best_hash=best_hash,
+            best_quiet=best_quiet,
         )
 
     except asyncio.CancelledError:

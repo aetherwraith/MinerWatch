@@ -723,6 +723,7 @@ export interface BenchmarkSample {
   efficiency_j_th: number | null;
   chip_temp_c: number | null;
   vr_temp_c: number | null;
+  fan_pct?: number | null;
   error_rate_pct: number;
   stable: number;
   abort_reason: string | null;
@@ -741,7 +742,9 @@ export interface BenchmarkRun {
   voltage_step_mv: number;
   dwell_time_s: number;
   max_error_rate_pct: number;
+  fan_mode?: string | null;
   pin_fan_pct: number | null;
+  quiet_fan_max_pct?: number | null;
   current_step: number;
   total_steps: number;
   best_eff_freq: number | null;
@@ -750,6 +753,10 @@ export interface BenchmarkRun {
   best_hash_freq: number | null;
   best_hash_volt: number | null;
   best_hash_ths: number | null;
+  best_quiet_freq?: number | null;
+  best_quiet_volt?: number | null;
+  best_quiet_j_th?: number | null;
+  best_quiet_fan_pct?: number | null;
   created_at: number;
   updated_at: number;
   samples: BenchmarkSample[];

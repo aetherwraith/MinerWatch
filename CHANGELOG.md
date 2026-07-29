@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.0] — 2026-07-29
+
+### Added
+
+- **Server-Side Asynchronous Benchmark Execution & Multi-Browser Sync.** Benchmarks run as an async background task on the backend server. Progress and samples are updated in real time and synchronized across all active browser windows. Navigating away or closing the browser does not interrupt the sweep.
+- **Active Benchmark Dashboard View.** Added a dedicated active running dashboard view featuring a parameter summary card, live percentage progress bar, candidate leaderboard cards, and a real-time matrix sample log table with fan speed (%) tracking.
+- **Best Quiet Setting Acoustic Search.** Added support for quiet fan searching (`quiet_fan_max_pct`). When running under auto-fan modes, the benchmark monitors settled fan speed per step and generates a **Best Quiet Profile** candidate (highest efficiency point where fan speed $\le$ `quiet_fan_max_pct`).
+
 ## [1.35.5] — 2026-07-29
 
 ### Fixed

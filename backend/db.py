@@ -585,6 +585,13 @@ def _init_db_sync() -> None:
             "ALTER TABLE guardian_profiles ADD COLUMN fan_speed_pct INTEGER",
             # Per-miner Guardian max power limit override.
             "ALTER TABLE miners ADD COLUMN guardian_max_power_w REAL",
+            # Benchmark quiet fan search & sample fan_pct tracking.
+            "ALTER TABLE miner_benchmarks ADD COLUMN quiet_fan_max_pct INTEGER",
+            "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_freq INTEGER",
+            "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_volt INTEGER",
+            "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_j_th REAL",
+            "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_fan_pct REAL",
+            "ALTER TABLE benchmark_samples ADD COLUMN fan_pct REAL",
         ]:
             try:
                 conn.execute(column_def)
@@ -2741,9 +2748,9 @@ async def create_miner_benchmark(miner_id: int, config: dict) -> int:
             INSERT INTO miner_benchmarks (
                 miner_id, status, min_freq_mhz, max_freq_mhz, freq_step_mhz,
                 min_voltage_mv, max_voltage_mv, voltage_step_mv, dwell_time_s,
-                max_error_rate_pct, pin_fan_pct, current_step, total_steps,
+                max_error_rate_pct, pin_fan_pct, quiet_fan_max_pct, current_step, total_steps,
                 created_at, updated_at
-            ) VALUES (?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            ) VALUES (?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
             """,
             (
                 miner_id,
@@ -2756,6 +2763,7 @@ async def create_miner_benchmark(miner_id: int, config: dict) -> int:
                 config["dwell_time_s"],
                 config["max_error_rate_pct"],
                 config.get("pin_fan_pct"),
+                config.get("quiet_fan_max_pct"),
                 config.get("total_steps", 0),
                 now,
                 now,
@@ -2801,6 +2809,7 @@ async def update_miner_benchmark(
     current_step: int | None = None,
     best_eff: dict | None = None,
     best_hash: dict | None = None,
+    best_quiet: dict | None = None,
 ) -> None:
     """Update progress, status, or best profiles for a benchmark run."""
     now = now_ts()
@@ -2827,6 +2836,15 @@ async def update_miner_benchmark(
         params.append(best_hash.get("voltage_mv"))
         updates.append("best_hash_ths = ?")
         params.append(best_hash.get("hashrate_ths"))
+    if best_quiet is not None:
+        updates.append("best_quiet_freq = ?")
+        params.append(best_quiet.get("freq_mhz"))
+        updates.append("best_quiet_volt = ?")
+        params.append(best_quiet.get("voltage_mv"))
+        updates.append("best_quiet_j_th = ?")
+        params.append(best_quiet.get("efficiency_j_th"))
+        updates.append("best_quiet_fan_pct = ?")
+        params.append(best_quiet.get("fan_pct"))
 
     params.append(benchmark_id)
     sql = f"UPDATE miner_benchmarks SET {', '.join(updates)} WHERE id = ?"
@@ -2843,9 +2861,9 @@ async def add_benchmark_sample(benchmark_id: int, miner_id: int, sample: dict) -
             """
             INSERT INTO benchmark_samples (
                 benchmark_id, miner_id, freq_mhz, voltage_mv, hashrate_ths,
-                power_w, efficiency_j_th, chip_temp_c, vr_temp_c, error_rate_pct,
+                power_w, efficiency_j_th, chip_temp_c, vr_temp_c, fan_pct, error_rate_pct,
                 stable, abort_reason, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 benchmark_id,
@@ -2857,6 +2875,7 @@ async def add_benchmark_sample(benchmark_id: int, miner_id: int, sample: dict) -
                 sample.get("efficiency_j_th"),
                 sample.get("chip_temp_c"),
                 sample.get("vr_temp_c"),
+                sample.get("fan_pct"),
                 sample.get("error_rate_pct", 0.0),
                 1 if sample.get("stable", True) else 0,
                 sample.get("abort_reason"),

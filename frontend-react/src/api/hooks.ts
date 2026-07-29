@@ -897,6 +897,7 @@ export interface BenchmarkStartPayload {
   max_error_rate_pct: number;
   fan_mode?: 'pin' | 'firmware' | 'minerwatch';
   pin_fan_pct?: number | null;
+  quiet_fan_max_pct?: number | null;
   enable_microtuning?: boolean;
   micro_freq_step_mhz?: number;
   micro_volt_step_mv?: number;
@@ -944,7 +945,7 @@ export function useCancelBenchmark(minerId: number) {
 export function useApplyBenchmarkProfile(minerId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (profile: 'max_efficiency' | 'max_hashrate') =>
+    mutationFn: (profile: 'max_efficiency' | 'max_hashrate' | 'quiet') =>
       api<{ ok: boolean; applied_profile: string; freq_mhz: number; voltage_mv: number }>(
         `/api/miners/${minerId}/benchmark/apply`,
         {

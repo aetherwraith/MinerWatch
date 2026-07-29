@@ -51,6 +51,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const [maxErrorRate, setMaxErrorRate] = useState<number>(1.1);
   const [benchFanMode, setBenchFanMode] = useState<'pin' | 'firmware' | 'minerwatch'>('pin');
   const [pinFanPct, setPinFanPct] = useState<number>(100);
+  const [quietFanMaxPct, setQuietFanMaxPct] = useState<number>(65);
   const [enableMicrotuning, setEnableMicrotuning] = useState<boolean>(false);
   const [microFreqStep, setMicroFreqStep] = useState<number>(5);
   const [microVoltStep, setMicroVoltStep] = useState<number>(10);
@@ -81,6 +82,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       max_error_rate_pct: maxErrorRate,
       fan_mode: benchFanMode,
       pin_fan_pct: benchFanMode === 'pin' ? pinFanPct : null,
+      quiet_fan_max_pct: quietFanMaxPct || null,
       enable_microtuning: enableMicrotuning,
       micro_freq_step_mhz: microFreqStep,
       micro_volt_step_mv: microVoltStep,
@@ -149,39 +151,58 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
         </div>
       </div>
 
-      {/* Sweep Progress Bar (When Running) */}
+      {/* Background Server Execution Banner */}
+      <div className="flex items-start gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-200">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
+        <span>
+          <strong>Asynchronous Server Execution:</strong> Benchmarks execute in a dedicated background process on the MinerWatch server. You can safely close or navigate away from this tab at any time—the sweep continues automatically and progress is synchronized across all browser windows.
+        </span>
+      </div>
+
+      {/* Sweep Progress Bar & Live Status (When Running) */}
       {running && (
-        <Card className="border-emerald-500/40 bg-emerald-500/5">
-          <CardContent className="pt-5 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
+        <Card className="border-emerald-500/50 bg-emerald-500/10">
+          <CardContent className="pt-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-300 font-semibold text-sm">
                 <RefreshCw className="h-4 w-4 animate-spin text-emerald-400" />
-                <span className="font-semibold text-emerald-300">Sweep In Progress...</span>
-                <span className="text-muted-foreground">
-                  (Step {currentStep} of {totalSteps})
-                </span>
+                Benchmark Sweep in Progress...
+                <Badge variant="outline" className="font-mono text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+                  Step {currentStep} of {totalSteps} ({progressPct}%)
+                </Badge>
               </div>
-              <span className="font-mono font-semibold text-emerald-400">{progressPct}%</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => cancelMutation.mutate()}
+                disabled={cancelMutation.isPending}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+                Cancel Benchmark
+              </Button>
             </div>
 
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted/40">
+            <div className="h-3 w-full overflow-hidden rounded-full bg-muted/50">
               <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-cyan-400 transition-all duration-500"
+                className="h-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-indigo-500 transition-all duration-500"
                 style={{ width: `${progressPct}%` }}
               />
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
-              <span>Guardian Thermal Safety Nets Active</span>
-              <span>Dwell: {dwellTime}s per step</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-muted-foreground pt-1">
+              <div>Range: <span className="text-foreground">{minFreq}-{maxFreq} MHz</span></div>
+              <div>Volt: <span className="text-foreground">{minVolt}-{maxVolt} mV</span></div>
+              <div>Dwell: <span className="text-foreground">{dwellTime}s</span></div>
+              <div>Fan Mode: <span className="text-foreground capitalize">{benchFanMode}</span></div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Best Profiles (When Completed) */}
-      {latestRun && latestRun.status === 'completed' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Optimal Candidate Profile Cards (When Completed or Samples Available) */}
+      {latestRun && (latestRun.status === 'completed' || latestRun.best_eff_freq) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Max Efficiency Profile Card */}
           <Card className="border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 to-transparent">
             <CardHeader className="pb-3">
@@ -190,23 +211,23 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <Sparkles className="h-5 w-5" />
                   <CardTitle className="text-base font-semibold">Max Efficiency Profile</CardTitle>
                 </div>
-                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
                   Sweet-Spot
                 </Badge>
               </div>
               <CardDescription>Lowest energy usage per Terahash (J/TH)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
-                  <span className="text-muted-foreground">Frequency / Voltage</span>
-                  <div className="text-base font-bold text-foreground mt-0.5">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
+                  <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
+                  <div className="text-sm font-bold text-foreground mt-0.5">
                     {latestRun.best_eff_freq ?? '—'} MHz / {latestRun.best_eff_volt ?? '—'} mV
                   </div>
                 </div>
-                <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
-                  <span className="text-muted-foreground">Best Efficiency</span>
-                  <div className="text-base font-bold text-emerald-400 mt-0.5">
+                <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
+                  <span className="text-muted-foreground text-[10px]">Efficiency</span>
+                  <div className="text-sm font-bold text-emerald-400 mt-0.5">
                     {latestRun.best_eff_j_th ? `${latestRun.best_eff_j_th.toFixed(1)} J/TH` : '—'}
                   </div>
                 </div>
@@ -216,10 +237,10 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 size="sm"
                 onClick={() => applyMutation.mutate('max_efficiency')}
                 disabled={applyMutation.isPending || !latestRun.best_eff_freq}
-                className="w-full h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-medium gap-2"
+                className="w-full h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Apply Max Efficiency Profile
+                Apply Max Efficiency
               </Button>
             </CardContent>
           </Card>
@@ -232,23 +253,23 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <Rocket className="h-5 w-5" />
                   <CardTitle className="text-base font-semibold">Max Hashrate Profile</CardTitle>
                 </div>
-                <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30">
+                <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-[10px]">
                   Peak Performance
                 </Badge>
               </div>
               <CardDescription>Highest mining throughput (TH/s)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
-                  <span className="text-muted-foreground">Frequency / Voltage</span>
-                  <div className="text-base font-bold text-foreground mt-0.5">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
+                  <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
+                  <div className="text-sm font-bold text-foreground mt-0.5">
                     {latestRun.best_hash_freq ?? '—'} MHz / {latestRun.best_hash_volt ?? '—'} mV
                   </div>
                 </div>
-                <div className="p-3 rounded-lg border border-border/50 bg-muted/20">
-                  <span className="text-muted-foreground">Peak Hashrate</span>
-                  <div className="text-base font-bold text-cyan-400 mt-0.5">
+                <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
+                  <span className="text-muted-foreground text-[10px]">Peak Hashrate</span>
+                  <div className="text-sm font-bold text-cyan-400 mt-0.5">
                     {latestRun.best_hash_ths ? `${latestRun.best_hash_ths.toFixed(2)} TH/s` : '—'}
                   </div>
                 </div>
@@ -258,10 +279,52 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 size="sm"
                 onClick={() => applyMutation.mutate('max_hashrate')}
                 disabled={applyMutation.isPending || !latestRun.best_hash_freq}
-                className="w-full h-9 bg-cyan-600 hover:bg-cyan-500 text-white font-medium gap-2"
+                className="w-full h-9 bg-cyan-600 hover:bg-cyan-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Apply Max Hashrate Profile
+                Apply Max Hashrate
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Best Quiet Profile Card */}
+          <Card className="border-indigo-500/50 bg-gradient-to-br from-indigo-500/10 to-transparent">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-indigo-400">
+                  <Gauge className="h-5 w-5" />
+                  <CardTitle className="text-base font-semibold">Best Quiet Profile</CardTitle>
+                </div>
+                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px]">
+                  Acoustic Quiet
+                </Badge>
+              </div>
+              <CardDescription>Highest efficiency where Fan ≤ {latestRun.quiet_fan_max_pct ?? 65}%</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
+                  <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
+                  <div className="text-sm font-bold text-foreground mt-0.5">
+                    {latestRun.best_quiet_freq ? `${latestRun.best_quiet_freq} MHz / ${latestRun.best_quiet_volt} mV` : '—'}
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
+                  <span className="text-muted-foreground text-[10px]">Quiet Efficiency</span>
+                  <div className="text-sm font-bold text-indigo-400 mt-0.5">
+                    {latestRun.best_quiet_j_th ? `${latestRun.best_quiet_j_th.toFixed(1)} J/TH` : '—'}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => applyMutation.mutate('quiet')}
+                disabled={applyMutation.isPending || !latestRun.best_quiet_freq}
+                className="w-full h-9 bg-indigo-600 hover:bg-indigo-500 text-white font-medium gap-2 text-xs"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Apply Quiet Profile
               </Button>
             </CardContent>
           </Card>
@@ -377,7 +440,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               </select>
             </div>
 
-            {benchFanMode === 'pin' && (
+            {benchFanMode === 'pin' ? (
               <div className="space-y-1.5">
                 <Label className="text-xs font-mono">Pinned Fan Speed (%)</Label>
                 <Input
@@ -388,6 +451,20 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   onChange={(e) => setPinFanPct(Number(e.target.value))}
                   disabled={running}
                   className="h-8 text-xs font-mono"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-mono text-indigo-300">Max Quiet Fan Limit (%)</Label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={100}
+                  value={quietFanMaxPct}
+                  onChange={(e) => setQuietFanMaxPct(Number(e.target.value))}
+                  disabled={running}
+                  placeholder="e.g. 65"
+                  className="h-8 text-xs font-mono border-indigo-500/40 focus:border-indigo-400"
                 />
               </div>
             )}
@@ -512,6 +589,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       <th className="p-2">Hashrate</th>
                       <th className="p-2">Power</th>
                       <th className="p-2">Efficiency</th>
+                      <th className="p-2">Fan Speed</th>
                       <th className="p-2">Chip Temp</th>
                       <th className="p-2">Status</th>
                     </tr>
@@ -526,6 +604,9 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                         <td className="p-2 font-mono">{s.power_w ? `${s.power_w.toFixed(1)} W` : '—'}</td>
                         <td className="p-2 font-mono font-semibold text-emerald-400">
                           {s.efficiency_j_th ? `${s.efficiency_j_th.toFixed(1)} J/TH` : '—'}
+                        </td>
+                        <td className="p-2 font-mono text-muted-foreground">
+                          {s.fan_pct != null ? `${s.fan_pct.toFixed(0)}%` : '—'}
                         </td>
                         <td className="p-2 font-mono">{s.chip_temp_c ? `${s.chip_temp_c.toFixed(1)}°C` : '—'}</td>
                         <td className="p-2">
