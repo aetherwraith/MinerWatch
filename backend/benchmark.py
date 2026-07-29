@@ -155,7 +155,9 @@ async def _run_benchmark_sweep(
     max_chip_temp = float(miner.get("guardian_max_chip_temp_c") or miner.get("guardian_max_temp_c") or 68.0)
     max_vr_temp = float(miner.get("guardian_max_vr_temp_c") or 82.0)
 
-    # Disable Guardian governor while benchmarking to prevent interference
+    # Disable Guardian governor while benchmarking to prevent interference,
+    # and reset any active tuning state/fan pin
+    guardian.guardian.reset_miner(miner_id)
     if orig_guardian_enabled:
         try:
             await db.update_miner(miner_id, guardian_enabled=False)
@@ -163,12 +165,16 @@ async def _run_benchmark_sweep(
         except Exception as e:
             logger.warning("Failed to temporarily disable Guardian on miner #%d: %s", miner_id, e)
 
-    # If pin_fan_pct is specified, temporarily pin miner fan
+    # If pin_fan_pct is specified, temporarily pin miner fan.
+    # Otherwise, ensure fan control is reset to the Control/Tuning page settings.
     if pin_fan_pct is not None:
         try:
             await _set_fan_speed(miner_id, pin_fan_pct)
         except Exception as e:
             logger.warning("Failed to pin fan speed to %d%% for miner #%d: %s", pin_fan_pct, miner_id, e)
+    else:
+        from backend.auto_control import auto_fan
+        auto_fan.reset_miner_state(miner_id)
 
     stable_samples: list[dict[str, Any]] = []
 

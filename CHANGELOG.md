@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.1] — 2026-07-29
+
+### Changed
+
+- **Renamed Controls Tab.** Renamed the `Controls` tab on the miner page to **`Tuning & Fans`** for clearer, more descriptive navigation.
+- **Guardian Tuning & Fan State Reset.** Added explicit Guardian tuning state reset (`guardian.reset_miner`) and auto-fan state restoration on benchmark launch to guarantee that fan control reverts to the settings configured on the Tuning & Fans page when unpinned.
+
 ## [1.33.0] — 2026-07-28
 
 ### Added
