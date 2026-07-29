@@ -901,6 +901,7 @@ export interface BenchmarkStartPayload {
   enable_microtuning?: boolean;
   micro_freq_step_mhz?: number;
   micro_volt_step_mv?: number;
+  early_skip_sec?: number;
 }
 
 export function useMinerBenchmarkStatus(minerId: number) {

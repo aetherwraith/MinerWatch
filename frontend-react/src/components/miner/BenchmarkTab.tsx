@@ -79,6 +79,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const [enableMicrotuning, setEnableMicrotuning] = useState<boolean>(false);
   const [microFreqStep, setMicroFreqStep] = useState<number>(5);
   const [microVoltStep, setMicroVoltStep] = useState<number>(10);
+  const [earlySkipSec, setEarlySkipSec] = useState<number>(60);
 
   // Sync defaults when data arrives
   useEffect(() => {
@@ -91,6 +92,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       setVoltStep(defaults.voltage_step_mv);
       setDwellTime(defaults.dwell_time_s);
       setMaxErrorRate(defaults.max_error_rate_pct);
+      if (defaults.early_skip_sec) setEarlySkipSec(defaults.early_skip_sec);
     }
   }, [defaults]);
 
@@ -110,6 +112,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       enable_microtuning: enableMicrotuning,
       micro_freq_step_mhz: microFreqStep,
       micro_volt_step_mv: microVoltStep,
+      early_skip_sec: earlySkipSec,
     });
   };
 
@@ -774,6 +777,19 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   value={maxErrorRate}
                   onChange={(e) => setMaxErrorRate(Number(e.target.value))}
                   disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Early Skip Settling Window (sec)</Label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={300}
+                  value={earlySkipSec}
+                  onChange={(e) => setEarlySkipSec(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  title="Min observation window before skipping non-stabilizing or out-of-bounds combinations early."
                   className="h-8 text-xs font-mono"
                 />
               </div>

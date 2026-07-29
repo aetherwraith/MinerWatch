@@ -1815,6 +1815,7 @@ class BenchmarkStartPayload(BaseModel):
     enable_microtuning: bool = False
     micro_freq_step_mhz: int = Field(default=5, ge=1, le=50)
     micro_volt_step_mv: int = Field(default=10, ge=1, le=50)
+    early_skip_sec: int = Field(default=60, ge=10, le=600)
 
 
 class BenchmarkApplyPayload(BaseModel):
@@ -2081,6 +2082,7 @@ async def api_benchmark_status(miner_id: int) -> dict:
         "voltage_step_mv": 25,
         "dwell_time_s": 30,
         "max_error_rate_pct": 1.1,
+        "early_skip_sec": 60,
         "current_freq_mhz": curr_freq,
     }
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.5] — 2026-07-29
+
+### Added
+
+- **Configurable Early Skip Settling Window.** Added configurable `early_skip_sec` parameter (defaults to 60s, adjustable 10–300s in UI) allowing slow-settling miners up to ~60s before early dwell skip evaluations trigger.
+- **Early Thermal Out-of-Bounds Skip.** Evaluates chip & VR temperatures against per-miner target caps during early skip checks, immediately skipping candidate points if thermals exceed target bounds.
+
 ## [1.37.4] — 2026-07-29
 
 ### Added

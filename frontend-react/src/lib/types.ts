@@ -709,6 +709,7 @@ export interface BenchmarkConfigDefaults {
   voltage_step_mv: number;
   dwell_time_s: number;
   max_error_rate_pct: number;
+  early_skip_sec?: number;
   current_freq_mhz: number;
 }
 

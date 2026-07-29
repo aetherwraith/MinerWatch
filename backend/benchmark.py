@@ -152,6 +152,7 @@ async def _run_benchmark_sweep(
 
     pin_fan_pct = config.get("pin_fan_pct")
     dwell_time_s = max(5, config.get("dwell_time_s", 30))
+    early_skip_sec = max(5, int(config.get("early_skip_sec", 60)))
     # Default error rate threshold set to Guardian's 1.1% threshold
     max_error_rate_pct = float(config.get("max_error_rate_pct", 1.1))
 
@@ -231,9 +232,9 @@ async def _run_benchmark_sweep(
                         logger.warning("Safety net triggered on benchmark #%d miner #%d: %s", benchmark_id, miner_id, abort_reason)
                         break
 
-                    # 2. Early Dwell Skip for Long Dwell Periods (dwell_time_s >= 60)
-                    # If we've observed at least 25s of telemetry and metrics clearly indicate instability:
-                    if dwell_time_s >= 60 and second >= 25 and len(dwell_samples) >= 5:
+                    # 2. Early Dwell Skip for Long Dwell Periods (dwell_time_s > early_skip_sec)
+                    # If we've observed telemetry past early_skip_sec and metrics indicate instability or out-of-bounds temps:
+                    if dwell_time_s > early_skip_sec and second >= early_skip_sec and len(dwell_samples) >= 3:
                         recent_window = dwell_samples[-5:]
                         def _r_avg(k: str) -> float | None:
                             v_list = [s[k] for s in recent_window if s.get(k) is not None]
@@ -243,6 +244,8 @@ async def _run_benchmark_sweep(
                         cur_hw_err = _r_avg("error_pct") or 0.0
                         cur_rej_pct = _r_avg("reject_pct") or 0.0
                         cur_eff_err = max(cur_hw_err, cur_rej_pct)
+                        cur_chip_t = _r_avg("temp_chip_c")
+                        cur_vr_t = _r_avg("temp_vr_c")
 
                         exp_hr = None
                         if miner:
@@ -254,10 +257,16 @@ async def _run_benchmark_sweep(
                         severe_errors = cur_eff_err >= max(5.0, max_error_rate_pct * 3.5)
                         severe_hr_deficit = exp_hr is not None and exp_hr > 0 and cur_hr < (exp_hr * 0.5)
                         zero_hashrate = cur_hr == 0.0
+                        temp_out_of_bounds = (
+                            (cur_chip_t is not None and cur_chip_t > max_chip_temp) or
+                            (cur_vr_t is not None and cur_vr_t > max_vr_temp)
+                        )
 
-                        if severe_errors or severe_hr_deficit or zero_hashrate:
+                        if severe_errors or severe_hr_deficit or zero_hashrate or temp_out_of_bounds:
                             dwell_aborted = True
-                            if severe_errors:
+                            if temp_out_of_bounds:
+                                abort_reason = f"Early dwell skip ({second}s): Temperature out of bounds (Chip: {cur_chip_t:.1f}°C > {max_chip_temp:.1f}°C, VR: {cur_vr_t:.1f}°C > {max_vr_temp:.1f}°C)"
+                            elif severe_errors:
                                 abort_reason = f"Early dwell skip ({second}s): Severe error rate ({cur_eff_err:.1f}%)"
                             elif severe_hr_deficit:
                                 abort_reason = f"Early dwell skip ({second}s): Hashrate {cur_hr:.2f} TH/s < 50% theoretical ({exp_hr:.2f} TH/s)"
@@ -405,8 +414,8 @@ async def _run_benchmark_sweep(
                                 m_abort_reason = f"Thermal safety trigger (Chip: {chip_t}°C, VR: {vr_t}°C)"
                                 break
 
-                            # Early Dwell Skip for Long Dwell Periods (dwell_time_s >= 60)
-                            if dwell_time_s >= 60 and m_sec >= 25 and len(m_dwell_samples) >= 5:
+                            # Early Dwell Skip for Long Dwell Periods (dwell_time_s > early_skip_sec)
+                            if dwell_time_s > early_skip_sec and m_sec >= early_skip_sec and len(m_dwell_samples) >= 3:
                                 m_recent = m_dwell_samples[-5:]
                                 def _mr_avg(k: str) -> float | None:
                                     v_list = [s[k] for s in m_recent if s.get(k) is not None]
@@ -416,6 +425,8 @@ async def _run_benchmark_sweep(
                                 cur_hw_err = _mr_avg("error_pct") or 0.0
                                 cur_rej_pct = _mr_avg("reject_pct") or 0.0
                                 cur_eff_err = max(cur_hw_err, cur_rej_pct)
+                                cur_chip_t = _mr_avg("temp_chip_c")
+                                cur_vr_t = _mr_avg("temp_vr_c")
 
                                 exp_hr = None
                                 if miner:
@@ -427,10 +438,16 @@ async def _run_benchmark_sweep(
                                 severe_errors = cur_eff_err >= max(5.0, max_error_rate_pct * 3.5)
                                 severe_hr_deficit = exp_hr is not None and exp_hr > 0 and cur_hr < (exp_hr * 0.5)
                                 zero_hashrate = cur_hr == 0.0
+                                temp_out_of_bounds = (
+                                    (cur_chip_t is not None and cur_chip_t > max_chip_temp) or
+                                    (cur_vr_t is not None and cur_vr_t > max_vr_temp)
+                                )
 
-                                if severe_errors or severe_hr_deficit or zero_hashrate:
+                                if severe_errors or severe_hr_deficit or zero_hashrate or temp_out_of_bounds:
                                     m_aborted = True
-                                    if severe_errors:
+                                    if temp_out_of_bounds:
+                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Temperature out of bounds (Chip: {cur_chip_t:.1f}°C > {max_chip_temp:.1f}°C, VR: {cur_vr_t:.1f}°C > {max_vr_temp:.1f}°C)"
+                                    elif severe_errors:
                                         m_abort_reason = f"Early dwell skip ({m_sec}s): Severe error rate ({cur_eff_err:.1f}%)"
                                     elif severe_hr_deficit:
                                         m_abort_reason = f"Early dwell skip ({m_sec}s): Hashrate {cur_hr:.2f} TH/s < 50% theoretical ({exp_hr:.2f} TH/s)"
