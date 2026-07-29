@@ -146,6 +146,10 @@ async def _run_benchmark_sweep(
     orig_guardian_enabled = bool(miner.get("guardian_enabled"))
     orig_fan_mode = miner.get("fan_mode")
 
+    best_eff: dict[str, Any] | None = None
+    best_hash: dict[str, Any] | None = None
+    best_quiet: dict[str, Any] | None = None
+
     pin_fan_pct = config.get("pin_fan_pct")
     dwell_time_s = max(5, config.get("dwell_time_s", 30))
     # Default error rate threshold set to Guardian's 1.1% threshold
@@ -160,7 +164,7 @@ async def _run_benchmark_sweep(
     guardian.guardian.reset_miner(miner_id)
     if orig_guardian_enabled:
         try:
-            await db.update_miner(miner_id, guardian_enabled=False)
+            await db.update_miner_guardian_config(miner_id, enabled=False)
             logger.info("Disabled Guardian governor on miner #%d for duration of benchmark", miner_id)
         except Exception as e:
             logger.warning("Failed to temporarily disable Guardian on miner #%d: %s", miner_id, e)
@@ -247,6 +251,9 @@ async def _run_benchmark_sweep(
             rej_pct = _avg("reject_pct") or 0.0
 
             fan_t = _avg("fan_pct")
+
+            # Combine chip hardware error rate and pool share rejection rate
+            effective_err_rate = max(hw_err, rej_pct)
 
             # Calculate expected theoretical hashrate matching Guardian rules (85% threshold)
             expected_ths = None
@@ -461,7 +468,7 @@ async def _run_benchmark_sweep(
         # Restore Guardian governor state if it was enabled prior to benchmark
         if orig_guardian_enabled:
             try:
-                await db.update_miner(miner_id, guardian_enabled=True)
+                await db.update_miner_guardian_config(miner_id, enabled=True)
                 logger.info("Restored Guardian governor state on miner #%d", miner_id)
             except Exception as e:
                 logger.warning("Failed restoring Guardian state for miner #%d: %s", miner_id, e)

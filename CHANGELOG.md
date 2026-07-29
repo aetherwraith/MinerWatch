@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.3] — 2026-07-29
+
+### Fixed
+
+- **Benchmark Sweep Premature Termination.** Fixed `NameError: effective_err_rate is not defined` in `backend/benchmark.py` that caused benchmark sweeps to fail on the first step.
+- **Guardian DB Method Exception Handling.** Fixed invalid `db.update_miner` call signatures to `db.update_miner_guardian_config` in `backend/benchmark.py`'s teardown & recovery handlers.
+
 ## [1.37.2] — 2026-07-29
 
 ### Added
