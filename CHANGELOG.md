@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.5] — 2026-07-29
+
+### Added
+
+- **Step 1 Warmup State Render in Matrix Card.** Added an active warmup state view to the Sweep Combination Matrix card during Step 1 so users see immediate feedback and telemetry settling status from the moment a sweep is started.
+
 ## [1.36.4] — 2026-07-29
 
 ### Added

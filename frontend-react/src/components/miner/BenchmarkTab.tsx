@@ -800,8 +800,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
         </Card>
       )}
 
-      {/* Benchmark Sweep Chart */}
-      {chartData.length > 0 && (
+      {/* Benchmark Sweep Chart & Matrix Table */}
+      {(running || chartData.length > 0) && (
         <Card className="border-border/60">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -812,52 +812,62 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 </CardDescription>
               </div>
               <Badge variant="outline" className="font-mono text-xs">
-                {chartData.length} Sample Points
+                {chartData.length} Sample Points {running && '(Sampling...)'}
               </Badge>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                  <XAxis
-                    dataKey="name"
-                    stroke="rgba(255,255,255,0.4)"
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    stroke="#10b981"
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Efficiency (J/TH)', angle: -90, position: 'insideLeft', fill: '#10b981', fontSize: 11 }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    stroke="#38bdf8"
-                    tick={{ fontSize: 11 }}
-                    label={{ value: 'Hashrate (TH/s)', angle: 90, position: 'insideRight', fill: '#38bdf8', fontSize: 11 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#0f172a',
-                      borderColor: 'rgba(255,255,255,0.15)',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                    formatter={(val: number, name: string) => [
-                      name.includes('Efficiency') ? `${val} J/TH` : `${val} TH/s`,
-                      name,
-                    ]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                  <Bar yAxisId="left" dataKey="efficiency" name="Efficiency (J/TH)" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.85} />
-                  <Line yAxisId="right" type="monotone" dataKey="hashrate" name="Hashrate (TH/s)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            {chartData.length > 0 ? (
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis
+                      dataKey="name"
+                      stroke="rgba(255,255,255,0.4)"
+                      tick={{ fontSize: 10 }}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      stroke="#10b981"
+                      tick={{ fontSize: 11 }}
+                      label={{ value: 'Efficiency (J/TH)', angle: -90, position: 'insideLeft', fill: '#10b981', fontSize: 11 }}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="#38bdf8"
+                      tick={{ fontSize: 11 }}
+                      label={{ value: 'Hashrate (TH/s)', angle: 90, position: 'insideRight', fill: '#38bdf8', fontSize: 11 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#0f172a',
+                        borderColor: 'rgba(255,255,255,0.15)',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                      }}
+                      formatter={(val: number, name: string) => [
+                        name.includes('Efficiency') ? `${val} J/TH` : `${val} TH/s`,
+                        name,
+                      ]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                    <Bar yAxisId="left" dataKey="efficiency" name="Efficiency (J/TH)" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.85} />
+                    <Line yAxisId="right" type="monotone" dataKey="hashrate" name="Hashrate (TH/s)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="flex h-48 w-full flex-col items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 p-6 text-center text-xs">
+                <RefreshCw className="h-6 w-6 animate-spin text-emerald-400 mb-2.5" />
+                <span className="font-semibold text-foreground text-sm">Sampling Step 1 in Progress...</span>
+                <span className="text-muted-foreground mt-1 max-w-sm">
+                  Collecting baseline telemetry and thermal stability measurements for {currentTestingSample?.freq_mhz ?? minFreq} MHz @ {currentTestingSample?.voltage_mv ?? minVolt} mV. Telemetry graph will render as soon as Step 1 settles ({dwellTime}s dwell).
+                </span>
+              </div>
+            )}
 
             {/* Matrix Data Table */}
             <div className="rounded-md border border-border/60 overflow-hidden">
