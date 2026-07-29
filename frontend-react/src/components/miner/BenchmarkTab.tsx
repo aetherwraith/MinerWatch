@@ -23,6 +23,9 @@ import {
   useStartBenchmark,
   useCancelBenchmark,
   useApplyBenchmarkProfile,
+  useGuardianProfiles,
+  useAcknowledgeBenchmark,
+  type BenchmarkProfileToSave,
 } from '@/api/hooks';
 import type { BenchmarkRun } from '@/lib/types';
 
@@ -32,13 +35,34 @@ interface BenchmarkTabProps {
 
 export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const { data, isLoading } = useMinerBenchmarkStatus(minerId);
+  const { data: profilesData } = useGuardianProfiles(minerId);
   const startMutation = useStartBenchmark(minerId);
   const cancelMutation = useCancelBenchmark(minerId);
   const applyMutation = useApplyBenchmarkProfile(minerId);
+  const ackMutation = useAcknowledgeBenchmark(minerId);
 
   const defaults = data?.defaults;
   const running = !!data?.running;
   const latestRun: BenchmarkRun | null = data?.latest_run ?? null;
+  const existingProfiles = profilesData?.profiles ?? [];
+
+  // Acknowledgment & profile save selection state
+  const isUnacknowledged = !!latestRun && !running && (latestRun.acknowledged === 0 || latestRun.acknowledged === undefined) && (latestRun.status === 'completed' || latestRun.status === 'aborted');
+
+  const effExisting = existingProfiles.find((p) => p.name === 'Max Efficiency (Benchmark)');
+  const hashExisting = existingProfiles.find((p) => p.name === 'Max Hashrate (Benchmark)');
+  const quietExisting = existingProfiles.find((p) => p.name === 'Best Quiet (Benchmark)');
+
+  const [saveEff, setSaveEff] = useState<boolean>(true);
+  const [saveHash, setSaveHash] = useState<boolean>(true);
+  const [saveQuiet, setSaveQuiet] = useState<boolean>(true);
+
+  // Sync default selection when run finishes
+  useEffect(() => {
+    setSaveEff(!!latestRun?.best_eff_freq);
+    setSaveHash(!!latestRun?.best_hash_freq);
+    setSaveQuiet(!!latestRun?.best_quiet_freq);
+  }, [latestRun?.id]);
 
   // Local config form state
   const [minFreq, setMinFreq] = useState<number>(400);
@@ -108,6 +132,47 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     }));
   }, [samples]);
 
+  const handleAcknowledge = (withProfiles: boolean) => {
+    if (!latestRun || !withProfiles) {
+      ackMutation.mutate([]);
+      return;
+    }
+
+    const profilesToSave: BenchmarkProfileToSave[] = [];
+
+    if (saveEff && latestRun.best_eff_freq && latestRun.best_eff_volt) {
+      profilesToSave.push({
+        name: 'Max Efficiency (Benchmark)',
+        max_freq_mhz: latestRun.best_eff_freq,
+        voltage_mv: latestRun.best_eff_volt,
+        fan_mode: latestRun.fan_mode || 'firmware',
+        existing_id: effExisting?.id ?? null,
+      });
+    }
+
+    if (saveHash && latestRun.best_hash_freq && latestRun.best_hash_volt) {
+      profilesToSave.push({
+        name: 'Max Hashrate (Benchmark)',
+        max_freq_mhz: latestRun.best_hash_freq,
+        voltage_mv: latestRun.best_hash_volt,
+        fan_mode: latestRun.fan_mode || 'firmware',
+        existing_id: hashExisting?.id ?? null,
+      });
+    }
+
+    if (saveQuiet && latestRun.best_quiet_freq && latestRun.best_quiet_volt) {
+      profilesToSave.push({
+        name: 'Best Quiet (Benchmark)',
+        max_freq_mhz: latestRun.best_quiet_freq,
+        voltage_mv: latestRun.best_quiet_volt,
+        fan_mode: latestRun.fan_mode || 'firmware',
+        existing_id: quietExisting?.id ?? null,
+      });
+    }
+
+    ackMutation.mutate(profilesToSave);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -141,8 +206,9 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               variant="default"
               size="sm"
               onClick={handleStart}
-              disabled={startMutation.isPending || isLoading}
-              className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+              disabled={startMutation.isPending || isLoading || isUnacknowledged}
+              title={isUnacknowledged ? 'Please acknowledge completed benchmark below before starting a new benchmark.' : undefined}
+              className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
             >
               <Play className="h-4 w-4 fill-current" />
               Start Sweet-Spot Sweep
@@ -150,6 +216,145 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
           )}
         </div>
       </div>
+
+      {/* Unacknowledged Benchmark Profile Save & Overwrite Panel */}
+      {isUnacknowledged && latestRun && (
+        <Card className="border-amber-500/60 bg-amber-500/10">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-300">
+                <Sparkles className="h-5 w-5" />
+                <CardTitle className="text-base font-semibold">Benchmark Complete — Save or Update Profiles</CardTitle>
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs">
+                Action Required
+              </Badge>
+            </div>
+            <CardDescription className="text-amber-200/80">
+              A benchmark sweep completed. Review candidate profiles below. You can save or overwrite existing profiles before acknowledging and unlocking new benchmark runs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              {/* Max Efficiency Candidate */}
+              <div className={`p-3.5 rounded-lg border transition-all ${saveEff ? 'border-emerald-500/60 bg-emerald-500/10' : 'border-border/40 bg-muted/20 opacity-60'}`}>
+                <div className="flex items-center justify-between font-semibold text-emerald-300 mb-1">
+                  <span>Max Efficiency</span>
+                  {effExisting && <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-300 border-amber-500/40">Existing Profile Found</Badge>}
+                </div>
+                <div className="space-y-1 font-mono text-[11px] text-foreground">
+                  <div>New: <span className="font-bold">{latestRun.best_eff_freq ?? '—'} MHz / {latestRun.best_eff_volt ?? '—'} mV</span> ({latestRun.best_eff_j_th ? `${latestRun.best_eff_j_th.toFixed(1)} J/TH` : '—'})</div>
+                  {effExisting && (
+                    <div className="text-muted-foreground">
+                      Existing: {effExisting.max_freq_mhz} MHz / {effExisting.voltage_mv} mV
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="chk-save-eff"
+                    checked={saveEff}
+                    onChange={(e) => setSaveEff(e.target.checked)}
+                    disabled={!latestRun.best_eff_freq}
+                    className="rounded border-border text-emerald-500 focus:ring-emerald-500"
+                  />
+                  <label htmlFor="chk-save-eff" className="text-[11px] font-medium text-foreground cursor-pointer">
+                    {effExisting ? 'Overwrite Existing Profile' : 'Create Guardian Profile'}
+                  </label>
+                </div>
+              </div>
+
+              {/* Max Hashrate Candidate */}
+              <div className={`p-3.5 rounded-lg border transition-all ${saveHash ? 'border-cyan-500/60 bg-cyan-500/10' : 'border-border/40 bg-muted/20 opacity-60'}`}>
+                <div className="flex items-center justify-between font-semibold text-cyan-300 mb-1">
+                  <span>Max Hashrate</span>
+                  {hashExisting && <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-300 border-amber-500/40">Existing Profile Found</Badge>}
+                </div>
+                <div className="space-y-1 font-mono text-[11px] text-foreground">
+                  <div>New: <span className="font-bold">{latestRun.best_hash_freq ?? '—'} MHz / {latestRun.best_hash_volt ?? '—'} mV</span> ({latestRun.best_hash_ths ? `${latestRun.best_hash_ths.toFixed(2)} TH/s` : '—'})</div>
+                  {hashExisting && (
+                    <div className="text-muted-foreground">
+                      Existing: {hashExisting.max_freq_mhz} MHz / {hashExisting.voltage_mv} mV
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="chk-save-hash"
+                    checked={saveHash}
+                    onChange={(e) => setSaveHash(e.target.checked)}
+                    disabled={!latestRun.best_hash_freq}
+                    className="rounded border-border text-cyan-500 focus:ring-cyan-500"
+                  />
+                  <label htmlFor="chk-save-hash" className="text-[11px] font-medium text-foreground cursor-pointer">
+                    {hashExisting ? 'Overwrite Existing Profile' : 'Create Guardian Profile'}
+                  </label>
+                </div>
+              </div>
+
+              {/* Best Quiet Candidate (Only if calculated under auto fan mode) */}
+              {latestRun.best_quiet_freq ? (
+                <div className={`p-3.5 rounded-lg border transition-all ${saveQuiet ? 'border-indigo-500/60 bg-indigo-500/10' : 'border-border/40 bg-muted/20 opacity-60'}`}>
+                  <div className="flex items-center justify-between font-semibold text-indigo-300 mb-1">
+                    <span>Best Quiet Profile</span>
+                    {quietExisting && <Badge variant="outline" className="text-[9px] bg-amber-500/15 text-amber-300 border-amber-500/40">Existing Profile Found</Badge>}
+                  </div>
+                  <div className="space-y-1 font-mono text-[11px] text-foreground">
+                    <div>New: <span className="font-bold">{latestRun.best_quiet_freq} MHz / {latestRun.best_quiet_volt} mV</span> ({latestRun.best_quiet_fan_pct?.toFixed(0)}% Fan)</div>
+                    {quietExisting && (
+                      <div className="text-muted-foreground">
+                        Existing: {quietExisting.max_freq_mhz} MHz / {quietExisting.voltage_mv} mV
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="chk-save-quiet"
+                      checked={saveQuiet}
+                      onChange={(e) => setSaveQuiet(e.target.checked)}
+                      className="rounded border-border text-indigo-500 focus:ring-indigo-500"
+                    />
+                    <label htmlFor="chk-save-quiet" className="text-[11px] font-medium text-foreground cursor-pointer">
+                      {quietExisting ? 'Overwrite Existing Profile' : 'Create Guardian Profile'}
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-lg border border-border/30 bg-muted/10 text-muted-foreground flex flex-col justify-center text-center">
+                  <span className="font-semibold text-xs text-foreground/70">Quiet Profile N/A</span>
+                  <span className="text-[10px] mt-1">Quiet profiles are only calculated when using Firmware Auto or MinerWatch Auto Fan modes.</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => handleAcknowledge(true)}
+                disabled={ackMutation.isPending}
+                className="w-full sm:w-auto h-9 bg-amber-600 hover:bg-amber-500 text-white font-medium text-xs gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Save Selected Profiles & Complete Benchmark
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAcknowledge(false)}
+                disabled={ackMutation.isPending}
+                className="w-full sm:w-auto h-9 text-xs border-amber-500/40 text-amber-200 hover:bg-amber-500/20"
+              >
+                Acknowledge & Dismiss without Saving
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Background Server Execution Banner */}
       <div className="flex items-start gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-xs text-cyan-200">

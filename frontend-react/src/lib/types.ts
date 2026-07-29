@@ -757,6 +757,7 @@ export interface BenchmarkRun {
   best_quiet_volt?: number | null;
   best_quiet_j_th?: number | null;
   best_quiet_fan_pct?: number | null;
+  acknowledged?: number;
   created_at: number;
   updated_at: number;
   samples: BenchmarkSample[];

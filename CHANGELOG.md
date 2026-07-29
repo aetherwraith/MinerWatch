@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.1] — 2026-07-29
+
+### Added
+
+- **Benchmark Acknowledgment & Profile Overwrite Comparison Flow.** Starting a new benchmark is now gated on acknowledging previous sweep results. When a benchmark completes, an interactive panel displays side-by-side comparisons of new candidates (**Max Efficiency**, **Max Hashrate**, and **Best Quiet**) against existing profiles with identical names, enabling per-profile overwrite or creation choices across all connected browser sessions.
+- **Auto-Fan Conditional Quiet Profile Calculation.** Quiet profile candidate searching is strictly scoped to auto fan modes (`firmware` auto or `minerwatch` auto) and skipped when running under fixed/pinned manual fan speeds.
+
 ## [1.36.0] — 2026-07-29
 
 ### Added

@@ -961,6 +961,31 @@ export function useApplyBenchmarkProfile(minerId: number) {
   });
 }
 
+export interface BenchmarkProfileToSave {
+  name: string;
+  max_freq_mhz: number;
+  voltage_mv: number;
+  fan_mode?: string | null;
+  fan_speed_pct?: number | null;
+  existing_id?: number | null;
+}
+
+export function useAcknowledgeBenchmark(minerId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (save_profiles: BenchmarkProfileToSave[]) =>
+      api<{ ok: boolean; saved_profiles: number }>(`/api/miners/${minerId}/benchmark/acknowledge`, {
+        method: 'POST',
+        body: { save_profiles },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-benchmark-status', minerId] });
+      qc.invalidateQueries({ queryKey: ['miner-guardian-profiles', minerId] });
+      qc.invalidateQueries({ queryKey: ['miner-guardian-status', minerId] });
+    },
+  });
+}
+
 export function useDeleteBenchmark(minerId: number) {
   const qc = useQueryClient();
   return useMutation({

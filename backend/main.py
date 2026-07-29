@@ -2100,6 +2100,10 @@ async def api_benchmark_start(miner_id: int, payload: BenchmarkStartPayload) -> 
     if benchmark.is_benchmark_running(miner_id):
         raise HTTPException(409, "a benchmark sweep is already running for this miner")
 
+    latest = await db.get_latest_miner_benchmark(miner_id)
+    if latest and not latest.get("acknowledged") and latest.get("status") in ("completed", "aborted"):
+        raise HTTPException(409, "A previous benchmark run completed and is waiting to be acknowledged. Please acknowledge or save profiles before starting a new benchmark.")
+
     config = payload.model_dump()
     try:
         benchmark_id = await benchmark.start_benchmark_task(miner_id, config)
@@ -2118,6 +2122,46 @@ async def api_benchmark_cancel(miner_id: int) -> dict:
     return {"ok": True, "canceled": canceled}
 
 
+class BenchmarkProfileToSave(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    max_freq_mhz: int
+    voltage_mv: int
+    fan_mode: str | None = None
+    fan_speed_pct: int | None = None
+    existing_id: int | None = None
+
+
+class BenchmarkAcknowledgePayload(BaseModel):
+    save_profiles: list[BenchmarkProfileToSave] = []
+
+
+@app.post("/api/miners/{miner_id}/benchmark/acknowledge")
+async def api_benchmark_acknowledge(miner_id: int, payload: BenchmarkAcknowledgePayload) -> dict:
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        raise HTTPException(404, "miner not found")
+
+    latest = await db.get_latest_miner_benchmark(miner_id)
+    if not latest:
+        return {"ok": True, "saved_profiles": 0}
+
+    saved_count = 0
+    for prof in payload.save_profiles:
+        profile_dict = {
+            "id": prof.existing_id,
+            "name": prof.name,
+            "max_freq_mhz": prof.max_freq_mhz,
+            "voltage_mv": prof.voltage_mv,
+            "fan_mode": prof.fan_mode,
+            "fan_speed_pct": prof.fan_speed_pct,
+        }
+        await db.save_guardian_profile(miner_id, profile_dict)
+        saved_count += 1
+
+    await db.acknowledge_miner_benchmark(miner_id, latest["id"])
+    return {"ok": True, "saved_profiles": saved_count}
+
+
 @app.post("/api/miners/{miner_id}/benchmark/apply")
 async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> dict:
     miner = await db.get_miner(miner_id)
@@ -2126,11 +2170,14 @@ async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> 
 
     latest = await db.get_latest_miner_benchmark(miner_id)
     if not latest:
-        raise HTTPException(400, "no benchmark profiles available for this miner")
+        return HTTPException(400, "no benchmark profiles available for this miner")
 
     if payload.profile == "max_efficiency":
         freq = latest.get("best_eff_freq")
         volt = latest.get("best_eff_volt")
+    elif payload.profile == "quiet":
+        freq = latest.get("best_quiet_freq")
+        volt = latest.get("best_quiet_volt")
     else:
         freq = latest.get("best_hash_freq")
         volt = latest.get("best_hash_volt")
@@ -2138,7 +2185,11 @@ async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> 
     if not freq:
         raise HTTPException(400, f"No stable {payload.profile} profile point found in benchmark run")
 
-    prof_name = "Max Efficiency (Benchmark)" if payload.profile == "max_efficiency" else "Max Hashrate (Benchmark)"
+    prof_name = (
+        "Max Efficiency (Benchmark)"
+        if payload.profile == "max_efficiency"
+        else ("Best Quiet (Benchmark)" if payload.profile == "quiet" else "Max Hashrate (Benchmark)")
+    )
     await db.set_guardian_config(miner_id, max_freq_mhz=freq)
     await db.set_active_guardian_profile(miner_id, prof_name)
     guardian.reset_miner(miner_id)

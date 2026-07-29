@@ -592,6 +592,8 @@ def _init_db_sync() -> None:
             "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_j_th REAL",
             "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_fan_pct REAL",
             "ALTER TABLE benchmark_samples ADD COLUMN fan_pct REAL",
+            # Benchmark acknowledgment state.
+            "ALTER TABLE miner_benchmarks ADD COLUMN acknowledged INTEGER DEFAULT 0",
         ]:
             try:
                 conn.execute(column_def)
@@ -2889,6 +2891,20 @@ async def clear_miner_benchmarks(miner_id: int) -> None:
     """Delete all benchmark records for a miner."""
     async with connect() as conn:
         await conn.execute("DELETE FROM miner_benchmarks WHERE miner_id = ?", (miner_id,))
+
+
+async def acknowledge_miner_benchmark(miner_id: int, benchmark_id: int) -> None:
+    """Mark a benchmark run as acknowledged so new benchmarks can be started."""
+    now = now_ts()
+    async with connect() as conn:
+        await conn.execute(
+            """
+            UPDATE miner_benchmarks
+            SET acknowledged = 1, status = 'acknowledged', updated_at = ?
+            WHERE id = ? AND miner_id = ?
+            """,
+            (now, benchmark_id, miner_id),
+        )
 
 
 # ---------------------------------------------------------------------------
