@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.3] — 2026-07-29
+
+### Fixed
+
+- **Benchmark Module Import.** Fixed a missing `import benchmark` statement in `backend/main.py` that caused a `NameError: name 'benchmark' is not defined` when fetching `/api/miners/{id}/benchmark/status`, preventing benchmarks from starting.
+
 ## [1.36.2] — 2026-07-29
 
 ### Fixed

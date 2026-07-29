@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from . import (
+    benchmark,
     btc_price,
     coin_difficulty,
     db,
