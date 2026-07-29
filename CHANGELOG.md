@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.8] — 2026-07-29
+
+### Fixed
+
+- **Saved Guardian Profiles Fallback on Aborted/Failed Benchmark Runs.** Updated profile cards and `/api/miners/{id}/benchmark/apply` to fall back to existing saved Guardian profiles when a benchmark run aborts or has no stable candidates, preventing cards from remaining stuck on "Evaluating..." and allowing saved profiles to be applied directly.
+
 ## [1.37.7] — 2026-07-29
 
 ### Fixed

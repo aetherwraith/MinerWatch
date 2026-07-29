@@ -239,18 +239,18 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     };
   }, [isMicroPhase, latestRun, plannedCombinations, minFreq, minVolt, samples, data?.live_metrics]);
 
-  // Display values for candidate cards
-  const displayEffFreq = latestRun?.best_eff_freq ?? liveBestEff?.freq_mhz ?? null;
-  const displayEffVolt = latestRun?.best_eff_volt ?? liveBestEff?.voltage_mv ?? null;
+  // Display values for candidate cards with fallback to saved existing profiles
+  const displayEffFreq = latestRun?.best_eff_freq ?? liveBestEff?.freq_mhz ?? effExisting?.max_freq_mhz ?? null;
+  const displayEffVolt = latestRun?.best_eff_volt ?? liveBestEff?.voltage_mv ?? effExisting?.voltage_mv ?? null;
   const displayEffJTh = latestRun?.best_eff_j_th ?? liveBestEff?.efficiency_j_th ?? null;
 
-  const displayHashFreq = latestRun?.best_hash_freq ?? liveBestHash?.freq_mhz ?? null;
-  const displayHashVolt = latestRun?.best_hash_volt ?? liveBestHash?.voltage_mv ?? null;
+  const displayHashFreq = latestRun?.best_hash_freq ?? liveBestHash?.freq_mhz ?? hashExisting?.max_freq_mhz ?? null;
+  const displayHashVolt = latestRun?.best_hash_volt ?? liveBestHash?.voltage_mv ?? hashExisting?.voltage_mv ?? null;
   const displayHashThs = latestRun?.best_hash_ths ?? liveBestHash?.hashrate_ths ?? null;
 
-  const displayQuietFreq = latestRun?.best_quiet_freq ?? liveBestQuiet?.freq_mhz ?? null;
-  const displayQuietVolt = latestRun?.best_quiet_volt ?? liveBestQuiet?.voltage_mv ?? null;
-  const displayQuietFan = latestRun?.best_quiet_fan_pct ?? liveBestQuiet?.fan_pct ?? null;
+  const displayQuietFreq = latestRun?.best_quiet_freq ?? liveBestQuiet?.freq_mhz ?? quietExisting?.max_freq_mhz ?? null;
+  const displayQuietVolt = latestRun?.best_quiet_volt ?? liveBestQuiet?.voltage_mv ?? quietExisting?.voltage_mv ?? null;
+  const displayQuietFan = latestRun?.best_quiet_fan_pct ?? liveBestQuiet?.fan_pct ?? quietExisting?.fan_speed_pct ?? null;
 
   const handleAcknowledge = (withProfiles: boolean) => {
     if (!latestRun || !withProfiles) {
@@ -561,8 +561,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
         </Card>
       )}
 
-      {/* Optimal Candidate Profile Leaderboard Cards (Shown when run or leading candidates exist) */}
-      {latestRun && (running || samples.length > 0 || latestRun.best_eff_freq) && (
+      {/* Optimal Candidate Profile Leaderboard Cards (Shown when run or leading candidates or existing saved profiles exist) */}
+      {(running || samples.length > 0 || latestRun?.best_eff_freq || effExisting || hashExisting || quietExisting) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Max Efficiency Profile Card */}
           <Card className="border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 to-transparent">
@@ -573,7 +573,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <CardTitle className="text-base font-semibold">Max Efficiency Profile</CardTitle>
                 </div>
                 <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
-                  {running ? 'Leading Candidate' : 'Sweet-Spot'}
+                  {running ? 'Leading Candidate' : (latestRun?.best_eff_freq ? 'Sweet-Spot' : 'Saved Profile')}
                 </Badge>
               </div>
               <CardDescription>Lowest energy usage per Terahash (J/TH)</CardDescription>
@@ -583,13 +583,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
                   <div className="text-sm font-bold text-foreground mt-0.5">
-                    {displayEffFreq ? `${displayEffFreq} MHz / ${displayEffVolt} mV` : 'Evaluating...'}
+                    {displayEffFreq ? `${displayEffFreq} MHz / ${displayEffVolt ?? 1200} mV` : (running ? 'Evaluating...' : 'No candidate')}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Efficiency</span>
                   <div className="text-sm font-bold text-emerald-400 mt-0.5">
-                    {displayEffJTh ? `${displayEffJTh.toFixed(1)} J/TH` : 'Evaluating...'}
+                    {displayEffJTh != null ? `${displayEffJTh.toFixed(1)} J/TH` : (effExisting ? 'Saved Profile' : (running ? 'Evaluating...' : '—'))}
                   </div>
                 </div>
               </div>
@@ -615,7 +615,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <CardTitle className="text-base font-semibold">Max Hashrate Profile</CardTitle>
                 </div>
                 <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-[10px]">
-                  {running ? 'Leading Candidate' : 'Peak Performance'}
+                  {running ? 'Leading Candidate' : (latestRun?.best_hash_freq ? 'Peak Performance' : 'Saved Profile')}
                 </Badge>
               </div>
               <CardDescription>Highest mining throughput (TH/s)</CardDescription>
@@ -625,13 +625,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
                   <div className="text-sm font-bold text-foreground mt-0.5">
-                    {displayHashFreq ? `${displayHashFreq} MHz / ${displayHashVolt} mV` : 'Evaluating...'}
+                    {displayHashFreq ? `${displayHashFreq} MHz / ${displayHashVolt ?? 1200} mV` : (running ? 'Evaluating...' : 'No candidate')}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Peak Hashrate</span>
                   <div className="text-sm font-bold text-cyan-400 mt-0.5">
-                    {displayHashThs ? `${displayHashThs.toFixed(2)} TH/s` : 'Evaluating...'}
+                    {displayHashThs != null ? `${displayHashThs.toFixed(2)} TH/s` : (hashExisting ? 'Saved Profile' : (running ? 'Evaluating...' : '—'))}
                   </div>
                 </div>
               </div>
@@ -657,23 +657,23 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <CardTitle className="text-base font-semibold">Best Quiet Profile</CardTitle>
                 </div>
                 <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px]">
-                  {running ? 'Leading Candidate' : 'Acoustic Quiet'}
+                  {running ? 'Leading Candidate' : (latestRun?.best_quiet_freq ? 'Acoustic Quiet' : 'Saved Profile')}
                 </Badge>
               </div>
-              <CardDescription>Max performance (TH/s) where Fan ≤ {latestRun.quiet_fan_max_pct ?? quietFanMaxPct ?? 65}%</CardDescription>
+              <CardDescription>Max performance (TH/s) where Fan ≤ {latestRun?.quiet_fan_max_pct ?? quietFanMaxPct ?? 65}%</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
                   <div className="text-sm font-bold text-foreground mt-0.5">
-                    {displayQuietFreq ? `${displayQuietFreq} MHz / ${displayQuietVolt} mV` : 'Evaluating...'}
+                    {displayQuietFreq ? `${displayQuietFreq} MHz / ${displayQuietVolt ?? 1200} mV` : (running ? 'Evaluating...' : 'No candidate')}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Quiet Hashrate / Fan</span>
                   <div className="text-sm font-bold text-indigo-400 mt-0.5">
-                    {displayQuietFreq ? `${liveBestQuiet?.hashrate_ths?.toFixed(2) ?? '—'} TH/s @ ${displayQuietFan?.toFixed(0) ?? '—'}%` : 'Evaluating...'}
+                    {displayQuietFreq ? `${liveBestQuiet?.hashrate_ths?.toFixed(2) ?? '—'} TH/s @ ${displayQuietFan ? displayQuietFan.toFixed(0) + '%' : '—'}` : (quietExisting ? 'Saved Profile' : (running ? 'Evaluating...' : '—'))}
                   </div>
                 </div>
               </div>

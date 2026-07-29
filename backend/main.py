@@ -2211,14 +2211,20 @@ async def api_benchmark_apply(miner_id: int, payload: BenchmarkApplyPayload) -> 
         freq = latest.get("best_hash_freq")
         volt = latest.get("best_hash_volt")
 
-    if not freq:
-        raise HTTPException(400, f"No stable {payload.profile} profile point found in benchmark run")
-
     prof_name = (
         "Max Efficiency (Benchmark)"
         if payload.profile == "max_efficiency"
         else ("Best Quiet (Benchmark)" if payload.profile == "quiet" else "Max Hashrate (Benchmark)")
     )
+
+    if not freq:
+        existing_profiles = await db.get_guardian_profiles(miner_id)
+        matching = next((p for p in existing_profiles if p["name"] == prof_name), None)
+        if matching and matching.get("max_freq_mhz"):
+            freq = matching["max_freq_mhz"]
+            volt = matching.get("voltage_mv")
+        else:
+            raise HTTPException(400, f"No stable {payload.profile} profile point found in benchmark run or saved profiles")
     await db.set_guardian_config(miner_id, max_freq_mhz=freq)
     await db.set_active_guardian_profile(miner_id, prof_name)
     guardian.reset_miner(miner_id)
