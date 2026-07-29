@@ -268,3 +268,10 @@ comportarsi bene.
 - È un **throttle protettivo + recupero**, non un ottimizzatore di efficienza:
   scendere di frequenza tenendo il voltaggio fisso peggiora i J/TH in quel
   momento. Accettabile — la sicurezza viene prima (la v2 indirizza l'efficienza).
+
+## 10. Integrazione con Benchmark Sweep & Microtuning (v1.36.0+)
+
+Il Guardian si integra direttamente con l'engine di **Automated Benchmarking & Microtuning** (`backend/benchmark.py` / `docs/benchmark-autotuning-guide.md`):
+- Durante lo sweep di benchmark, il Guardian viene temporaneamente disattivato per consentire al server di misurare la stabilità e l'efficienza sui vari punti operativi senza interferenze della legge di controllo.
+- Alla conclusione del benchmark, i punti ottimali identificati (**Max Efficiency**, **Max Hashrate**, e **Best Quiet**) possono essere salvati o sovrapposti come **Profili Guardian** personalizzati.
+- L'utente beneficia così sia della caratterizzazione automatica dell'hardware (sweep + microtuning) sia della protezione dinamica continua a runtime (Guardian governor).

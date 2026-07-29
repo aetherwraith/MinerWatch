@@ -133,6 +133,12 @@ comfortable opening a terminal but not necessarily developers.
   the *chip*) and fills the gap the 75 °C overheat watchdog doesn't cover.
   Opt-in per miner with editable floor / ceiling. Design notes:
   [docs/guardian-design.md](docs/guardian-design.md)
+- **Automated Benchmarking & Microtuning** (`backend/benchmark.py`) — asynchronous
+  server-side matrix sweeps across operating frequency and core voltage combinations.
+  Computes optimal profiles for **Max Efficiency** ($J/\text{TH}$), **Max Hashrate** ($\text{TH/s}$),
+  and **Best Quiet** ($\text{Fan} \le \text{Limit}\%$) with optional microtuning sub-sweeps
+  and side-by-side profile overwrite comparisons across multi-browser sessions. Design notes:
+  [docs/benchmark-autotuning-guide.md](docs/benchmark-autotuning-guide.md)
 - **Donate hashrate** — temporarily lend any subset of your miners to the
   project's solo.ckpool address for a few hours; MinerWatch snapshots each
   miner's current pool, repoints it, and auto-reverts when the timer
