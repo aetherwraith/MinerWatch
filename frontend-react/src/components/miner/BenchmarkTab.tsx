@@ -114,16 +114,24 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   };
 
   const samples = latestRun?.samples ?? [];
-  const totalSteps = latestRun?.total_steps || 1;
-  const currentStep = latestRun?.current_step || 0;
-  const progressPct = Math.min(100, Math.round((currentStep / totalSteps) * 100));
+  const sweepPhase = latestRun?.sweep_phase || 'coarse';
+  const coarseTotal = latestRun?.total_steps || 1;
+  const coarseCurrent = latestRun?.current_step || 0;
+  const microTotal = latestRun?.micro_total_steps || 0;
+  const microCurrent = latestRun?.micro_current_step || 0;
+
+  const isMicroPhase = sweepPhase === 'microtuning' || (running && microTotal > 0 && microCurrent > 0);
+
+  const activeTotal = isMicroPhase ? microTotal : coarseTotal;
+  const activeCurrent = isMicroPhase ? microCurrent : coarseCurrent;
+  const progressPct = Math.min(100, Math.round((activeCurrent / Math.max(1, activeTotal)) * 100));
 
   const dwellSec = latestRun?.dwell_time_s ?? dwellTime ?? 30;
-  const remainingSteps = Math.max(0, totalSteps - currentStep);
+  const remainingSteps = Math.max(0, activeTotal - activeCurrent);
   const etaSec = remainingSteps * dwellSec;
   const etaText = useMemo(() => {
     if (!running) return null;
-    if (etaSec <= 0) return 'Finishing...';
+    if (etaSec <= 0) return 'Finishing phase...';
     const m = Math.floor(etaSec / 60);
     const s = etaSec % 60;
     if (m === 0) return `~${s}s remaining`;
@@ -464,11 +472,15 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
         <Card className="border-emerald-500/50 bg-emerald-500/10">
           <CardContent className="pt-5 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-300 font-semibold text-sm">
+              <div className="flex flex-wrap items-center gap-2 text-emerald-300 font-semibold text-sm">
                 <RefreshCw className="h-4 w-4 animate-spin text-emerald-400" />
-                Benchmark Sweep in Progress...
+                <span>
+                  {isMicroPhase ? 'Phase 2: Fine Microtuning Search...' : 'Phase 1: Coarse Matrix Sweep...'}
+                </span>
                 <Badge variant="outline" className="font-mono text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/40 gap-1.5">
-                  <span>Step {currentStep} of {totalSteps} ({progressPct}%)</span>
+                  <span>
+                    {isMicroPhase ? `Micro Step ${activeCurrent} of ${activeTotal}` : `Step ${activeCurrent} of ${activeTotal}`} ({progressPct}%)
+                  </span>
                   {etaText && (
                     <>
                       <span className="text-emerald-400/60">•</span>
@@ -505,7 +517,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
-                    Active Test Point (Step {currentStep} of {totalSteps}):
+                    Active Test Point ({isMicroPhase ? `Micro Step ${activeCurrent}` : `Step ${activeCurrent}`} of {activeTotal}):
                   </span>
                   <Badge className="bg-emerald-500/25 text-emerald-200 border-emerald-500/40 text-[10px]">
                     Live Sampling

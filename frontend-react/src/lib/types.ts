@@ -747,6 +747,9 @@ export interface BenchmarkRun {
   quiet_fan_max_pct?: number | null;
   current_step: number;
   total_steps: number;
+  sweep_phase?: string;
+  micro_current_step?: number;
+  micro_total_steps?: number;
   best_eff_freq: number | null;
   best_eff_volt: number | null;
   best_eff_j_th: number | null;

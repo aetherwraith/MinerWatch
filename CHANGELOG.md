@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.1] — 2026-07-29
+
+### Added
+
+- **Separate Phase 1 & Phase 2 Microtuning Progress.** Split sweep progress tracking into distinct `Phase 1: Coarse Matrix Sweep` and `Phase 2: Fine Microtuning Search` stages (`sweep_phase`, `micro_current_step`, `micro_total_steps`).
+
+### Changed
+
+- **Guardian Theoretical Hashrate Alignment.** Updated sample stability criteria in `backend/benchmark.py` to enforce Guardian's 85% theoretical expected hashrate rule (`hashrate >= expected_ths * 0.85`), preventing unstable or throttled states from being classified as stable candidates.
+
 ## [1.37.0] — 2026-07-29
 
 ### Changed

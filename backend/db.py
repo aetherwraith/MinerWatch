@@ -592,8 +592,11 @@ def _init_db_sync() -> None:
             "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_j_th REAL",
             "ALTER TABLE miner_benchmarks ADD COLUMN best_quiet_fan_pct REAL",
             "ALTER TABLE benchmark_samples ADD COLUMN fan_pct REAL",
-            # Benchmark acknowledgment state.
+            # Benchmark acknowledgment state & phase tracking.
             "ALTER TABLE miner_benchmarks ADD COLUMN acknowledged INTEGER DEFAULT 0",
+            "ALTER TABLE miner_benchmarks ADD COLUMN sweep_phase TEXT DEFAULT 'coarse'",
+            "ALTER TABLE miner_benchmarks ADD COLUMN micro_current_step INTEGER DEFAULT 0",
+            "ALTER TABLE miner_benchmarks ADD COLUMN micro_total_steps INTEGER DEFAULT 0",
         ]:
             try:
                 conn.execute(column_def)
@@ -2809,11 +2812,15 @@ async def update_miner_benchmark(
     benchmark_id: int,
     status: str | None = None,
     current_step: int | None = None,
+    total_steps: int | None = None,
+    sweep_phase: str | None = None,
+    micro_current_step: int | None = None,
+    micro_total_steps: int | None = None,
     best_eff: dict | None = None,
     best_hash: dict | None = None,
     best_quiet: dict | None = None,
 ) -> None:
-    """Update progress, status, or best profiles for a benchmark run."""
+    """Update progress, status, phase, or best profiles for a benchmark run."""
     now = now_ts()
     updates = ["updated_at = ?"]
     params: list[Any] = [now]
@@ -2824,6 +2831,18 @@ async def update_miner_benchmark(
     if current_step is not None:
         updates.append("current_step = ?")
         params.append(current_step)
+    if total_steps is not None:
+        updates.append("total_steps = ?")
+        params.append(total_steps)
+    if sweep_phase is not None:
+        updates.append("sweep_phase = ?")
+        params.append(sweep_phase)
+    if micro_current_step is not None:
+        updates.append("micro_current_step = ?")
+        params.append(micro_current_step)
+    if micro_total_steps is not None:
+        updates.append("micro_total_steps = ?")
+        params.append(micro_total_steps)
     if best_eff is not None:
         updates.append("best_eff_freq = ?")
         params.append(best_eff.get("freq_mhz"))

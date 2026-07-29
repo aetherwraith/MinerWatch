@@ -248,11 +248,24 @@ async def _run_benchmark_sweep(
 
             fan_t = _avg("fan_pct")
 
-            # Combine chip hardware error rate and pool share rejection rate
-            effective_err_rate = max(hw_err, rej_pct)
+            # Calculate expected theoretical hashrate matching Guardian rules (85% threshold)
+            expected_ths = None
+            if miner:
+                small_cores = miner.get("small_core_count")
+                asic_count = miner.get("asic_count")
+                if small_cores and asic_count:
+                    total_cores = int(small_cores) * int(asic_count)
+                    expected_ths = (freq * total_cores) / 1_000_000.0
+
+            valid_hashrate = True
+            if expected_ths and expected_ths > 0:
+                valid_hashrate = (hr >= expected_ths * 0.85)
+
+            if not valid_hashrate and not abort_reason:
+                abort_reason = f"Hashrate {hr:.2f} TH/s below 85% theoretical ({expected_ths * 0.85:.2f} TH/s)"
 
             j_th = (power / hr) if (hr > 0 and power > 0) else None
-            is_stable = not dwell_aborted and effective_err_rate <= max_error_rate_pct and hr > 0
+            is_stable = not dwell_aborted and effective_err_rate <= max_error_rate_pct and hr > 0 and valid_hashrate
 
             sample_record = {
                 "freq_mhz": freq,
@@ -306,16 +319,24 @@ async def _run_benchmark_sweep(
 
             if micro_candidates:
                 total_micro = len(micro_candidates)
-                total_all_steps = len(combinations) + total_micro
-                await db.update_miner_benchmark(benchmark_id, total_steps=total_all_steps)
-                logger.info("Starting microtuning sweep with %d fine candidate points on miner #%d (total steps=%d)", total_micro, miner_id, total_all_steps)
+                await db.update_miner_benchmark(
+                    benchmark_id,
+                    sweep_phase="microtuning",
+                    micro_current_step=0,
+                    micro_total_steps=total_micro,
+                )
+                logger.info("Starting Phase 2 microtuning sweep with %d fine candidate points on miner #%d", total_micro, miner_id)
 
                 for m_idx, (f, v) in enumerate(sorted(list(micro_candidates))):
                     if _abort_flags.get(miner_id):
                         break
 
-                    step_num = len(combinations) + m_idx + 1
-                    await db.update_miner_benchmark(benchmark_id, current_step=step_num)
+                    await db.update_miner_benchmark(
+                        benchmark_id,
+                        sweep_phase="microtuning",
+                        micro_current_step=m_idx + 1,
+                        micro_total_steps=total_micro,
+                    )
 
                     try:
                         await _apply_freq_and_volt(miner_id, f, v)
@@ -359,7 +380,24 @@ async def _run_benchmark_sweep(
                     rej_pct = _m_avg("reject_pct") or 0.0
                     eff_err = max(hw_err, rej_pct)
                     j_th = (power / hr) if (hr > 0 and power > 0) else None
-                    is_stable = not m_aborted and eff_err <= max_error_rate_pct and hr > 0
+
+                    # Guardian expected theoretical hashrate check for microtuning
+                    m_expected_ths = None
+                    if miner:
+                        small_cores = miner.get("small_core_count")
+                        asic_count = miner.get("asic_count")
+                        if small_cores and asic_count:
+                            total_cores = int(small_cores) * int(asic_count)
+                            m_expected_ths = (f * total_cores) / 1_000_000.0
+
+                    m_valid_hashrate = True
+                    if m_expected_ths and m_expected_ths > 0:
+                        m_valid_hashrate = (hr >= m_expected_ths * 0.85)
+
+                    if not m_valid_hashrate and not m_abort_reason:
+                        m_abort_reason = f"Hashrate {hr:.2f} TH/s below 85% theoretical ({m_expected_ths * 0.85:.2f} TH/s)"
+
+                    is_stable = not m_aborted and eff_err <= max_error_rate_pct and hr > 0 and m_valid_hashrate
 
                     m_sample = {
                         "freq_mhz": f,
