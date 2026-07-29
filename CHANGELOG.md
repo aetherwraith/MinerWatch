@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.0] — 2026-07-29
+
+### Changed
+
+- **Standardized Benchmark Start Action Buttons.** Aligned both `Start Benchmark Sweep` action buttons (header card and sweep parameters card footer) with identical styling, icons, and label text (`Start Benchmark Sweep`).
+
 ## [1.36.9] — 2026-07-29
 
 ### Added

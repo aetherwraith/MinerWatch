@@ -303,10 +303,10 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               onClick={handleStart}
               disabled={startMutation.isPending || isLoading || isUnacknowledged}
               title={isUnacknowledged ? 'Please acknowledge completed benchmark below before starting a new benchmark.' : undefined}
-              className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50"
+              className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs disabled:opacity-50"
             >
               <Play className="h-4 w-4 fill-current" />
-              Start Sweet-Spot Sweep
+              Start Benchmark Sweep
             </Button>
           )}
         </div>
