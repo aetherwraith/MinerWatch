@@ -452,6 +452,16 @@ class AutoFanController:
                 log.exception(
                     "WATCHDOG miner=%s set_fan_speed(100) failed", miner.get("name")
                 )
+        if drv.can_pause:
+            try:
+                await drv.pause()
+                log.warning(
+                    "WATCHDOG miner=%s paused ASIC hashing for thermal protection", miner.get("name")
+                )
+            except Exception:
+                log.exception(
+                    "WATCHDOG miner=%s pause() failed", miner.get("name")
+                )
         state.forced = True
         log.warning(
             "WATCHDOG miner=%s OVERHEAT %.1f°C ≥ %.1f°C — fan forced to 100%%",
@@ -480,6 +490,18 @@ class AutoFanController:
         self, miner: dict, temp: float, state: _WatchdogState, release_c: float
     ) -> None:
         miner_id = int(miner["id"])
+        cfg = get_config()
+        drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
+        if drv.can_pause:
+            try:
+                await drv.resume()
+                log.info(
+                    "WATCHDOG miner=%s resumed ASIC hashing after thermal recovery", miner.get("name")
+                )
+            except Exception:
+                log.exception(
+                    "WATCHDOG miner=%s resume() failed", miner.get("name")
+                )
         log.info(
             "WATCHDOG miner=%s temp dropped to %.1f°C ≤ %.1f°C — control released",
             miner.get("name"), temp, release_c,

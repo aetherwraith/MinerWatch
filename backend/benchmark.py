@@ -127,6 +127,69 @@ async def _get_latest_metrics(miner_id: int) -> dict[str, Any]:
     }
 
 
+async def _thermal_cooling_pause(
+    miner_id: int,
+    benchmark_id: int,
+    max_chip_temp: float,
+    max_vr_temp: float,
+) -> None:
+    """Pause miner on thermal safety trigger, force fans 100%, cool below target caps, then resume & ramp up (10s)."""
+    miner = await db.get_miner(miner_id)
+    if not miner:
+        return
+
+    drv = driver_for_record(miner)
+    try:
+        await _set_fan_speed(miner_id, 100)
+    except Exception as e:
+        logger.warning("Failed forcing fans 100%% for thermal pause on miner #%d: %s", miner_id, e)
+
+    if drv.can_pause:
+        try:
+            await drv.pause()
+            logger.info("Soft-paused ASIC hashing for thermal cooling on miner #%d", miner_id)
+        except Exception as e:
+            logger.warning("Failed soft-pausing ASIC on miner #%d: %s", miner_id, e)
+
+    target_chip = max(50.0, max_chip_temp - 3.0)
+    target_vr = max(60.0, max_vr_temp - 3.0)
+
+    logger.warning(
+        "Thermal cooling pause active on benchmark #%d miner #%d (waiting for Chip ≤ %.1f°C / VR ≤ %.1f°C)...",
+        benchmark_id, miner_id, target_chip, target_vr,
+    )
+
+    for cool_sec in range(180):
+        if _abort_flags.get(miner_id):
+            break
+        await asyncio.sleep(1)
+        latest = await _get_latest_metrics(miner_id)
+        if latest:
+            c_temp = latest.get("temp_chip_c")
+            v_temp = latest.get("temp_vr_c")
+
+            chip_ok = (c_temp is None) or (c_temp <= target_chip)
+            vr_ok = (v_temp is None) or (v_temp <= target_vr)
+
+            if chip_ok and vr_ok:
+                logger.info(
+                    "Miner #%d cooled down successfully (Chip: %s°C, VR: %s°C) after %ds",
+                    miner_id, f"{c_temp:.1f}" if c_temp else "—", f"{v_temp:.1f}" if v_temp else "—", cool_sec + 1,
+                )
+                break
+
+    if drv.can_pause and not _abort_flags.get(miner_id):
+        try:
+            await drv.resume()
+            logger.info("Resumed ASIC hashing after thermal cooling on miner #%d", miner_id)
+        except Exception as e:
+            logger.warning("Failed resuming ASIC hashing on miner #%d: %s", miner_id, e)
+
+    if not _abort_flags.get(miner_id):
+        logger.info("Ramping up miner #%d for 10s prior to next step...", miner_id)
+        await asyncio.sleep(10)
+
+
 async def _run_benchmark_sweep(
     benchmark_id: int,
     miner_id: int,
@@ -340,11 +403,9 @@ async def _run_benchmark_sweep(
             if is_stable and j_th is not None:
                 stable_samples.append(sample_record)
 
-            # If emergency thermal safety net triggered, immediately halt sweep
-            if thermal_safety_trigger:
-                logger.info("Halting benchmark #%d due to thermal safety net", benchmark_id)
-                await db.update_miner_benchmark(benchmark_id, status="aborted", current_step=idx + 1)
-                break
+            # If thermal safety trigger occurred, pause to cool down, unpause & ramp up 10s, then continue!
+            if thermal_safety_trigger or (dwell_aborted and abort_reason and "Thermal" in abort_reason):
+                await _thermal_cooling_pause(miner_id, benchmark_id, max_chip_temp, max_vr_temp)
 
         # Optional Microtuning Sweep Phase
         enable_micro = bool(config.get("enable_microtuning"))
@@ -515,9 +576,8 @@ async def _run_benchmark_sweep(
                     if is_stable and j_th is not None:
                         stable_samples.append(m_sample)
 
-                    if m_thermal_trigger:
-                        logger.info("Halting microtuning on benchmark #%d due to thermal safety net", benchmark_id)
-                        break
+                    if m_thermal_trigger or (m_aborted and m_abort_reason and "Thermal" in m_abort_reason):
+                        await _thermal_cooling_pause(miner_id, benchmark_id, max_chip_temp, max_vr_temp)
 
         # Sweep finished — calculate best profiles
         best_eff = None

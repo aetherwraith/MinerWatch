@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.9] — 2026-07-29
+
+### Added
+
+- **Thermal Cooling Pause & Automatic Recovery.** Updated benchmark thermal triggers to soft-pause ASIC hashing (where supported by driver) and force fans to 100% max cooling instead of aborting the sweep. Monitors thermals until temperatures cool down $3^\circ\text{C}$ below target caps, unpauses, allows a 10-second ramp-up period, and continues with the next step in the sweep.
+- **75°C Overheat Watchdog Hashing Pause.** Updated the 75°C overheat watchdog in `backend/auto_control.py` to invoke `drv.pause()` (hashing pause) alongside forcing fans to 100%, and `drv.resume()` on watchdog release.
+
 ## [1.37.8] — 2026-07-29
 
 ### Fixed
