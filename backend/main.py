@@ -2086,11 +2086,37 @@ async def api_benchmark_status(miner_id: int) -> dict:
         "current_freq_mhz": curr_freq,
     }
 
+    sample = poller.last_results.get(miner_id)
+    live_metrics = None
+    if sample:
+        rej = float(getattr(sample, "rejected", 0) or 0)
+        acc = float(getattr(sample, "accepted", 0) or 0)
+        tot = rej + acc
+        reject_pct = (rej / tot * 100.0) if tot > 0 else 0.0
+
+        fan_pct = getattr(sample, "fan_pct", None)
+        if fan_pct is None and getattr(sample, "fans", None):
+            fans = getattr(sample, "fans")
+            if fans and isinstance(fans, list):
+                pcts = [f.speed_pct for f in fans if hasattr(f, "speed_pct") and f.speed_pct is not None]
+                if pcts:
+                    fan_pct = sum(pcts) / len(pcts)
+
+        live_metrics = {
+            "hashrate_ths": getattr(sample, "hashrate_ths", None),
+            "power_w": getattr(sample, "power_w", None),
+            "temp_chip_c": getattr(sample, "temp_chip_c", None),
+            "temp_vr_c": getattr(sample, "temp_vr_c", None),
+            "fan_pct": fan_pct,
+            "error_rate_pct": max(float(getattr(sample, "error_pct", 0) or 0.0), reject_pct),
+        }
+
     return {
         "miner_id": miner_id,
         "running": running,
         "defaults": defaults,
         "latest_run": latest_run,
+        "live_metrics": live_metrics,
     }
 
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.6] — 2026-07-29
+
+### Added
+
+- **Live Telemetry Stream during Active Test Points.** Surfaced `live_metrics` (live fan speed, hashrate, power, chip temp, and VR temp) in the `/api/miners/{id}/benchmark/status` endpoint so that the Active Test Point banner renders full live telemetry even during Step 1 while the initial point is in dwell.
+
 ## [1.37.5] — 2026-07-29
 
 ### Added

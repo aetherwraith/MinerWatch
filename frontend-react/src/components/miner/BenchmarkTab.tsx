@@ -212,13 +212,17 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
 
   // Current parameters under active test (works from Step 1 onwards across both phases!)
   const activeTestingPoint = useMemo(() => {
+    const live = data?.live_metrics;
+
     if (isMicroPhase) {
       const latestSample = samples[samples.length - 1];
       return {
         freq_mhz: latestSample?.freq_mhz ?? minFreq,
         voltage_mv: latestSample?.voltage_mv ?? minVolt,
-        hashrate_ths: latestSample?.hashrate_ths ?? null,
-        fan_pct: latestSample?.fan_pct ?? null,
+        hashrate_ths: live?.hashrate_ths ?? latestSample?.hashrate_ths ?? null,
+        fan_pct: live?.fan_pct ?? latestSample?.fan_pct ?? null,
+        temp_chip_c: live?.temp_chip_c ?? latestSample?.chip_temp_c ?? null,
+        temp_vr_c: live?.temp_vr_c ?? latestSample?.vr_temp_c ?? null,
       };
     }
     const activeStepIdx = Math.max(0, (latestRun?.current_step || 1) - 1);
@@ -228,10 +232,12 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     return {
       freq_mhz: plan.freq_mhz,
       voltage_mv: plan.voltage_mv,
-      hashrate_ths: sampleForStep?.hashrate_ths ?? null,
-      fan_pct: sampleForStep?.fan_pct ?? null,
+      hashrate_ths: live?.hashrate_ths ?? sampleForStep?.hashrate_ths ?? null,
+      fan_pct: live?.fan_pct ?? sampleForStep?.fan_pct ?? null,
+      temp_chip_c: live?.temp_chip_c ?? sampleForStep?.chip_temp_c ?? null,
+      temp_vr_c: live?.temp_vr_c ?? sampleForStep?.vr_temp_c ?? null,
     };
-  }, [isMicroPhase, latestRun, plannedCombinations, minFreq, minVolt, samples]);
+  }, [isMicroPhase, latestRun, plannedCombinations, minFreq, minVolt, samples, data?.live_metrics]);
 
   // Display values for candidate cards
   const displayEffFreq = latestRun?.best_eff_freq ?? liveBestEff?.freq_mhz ?? null;
@@ -534,11 +540,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                     Live Sampling
                   </Badge>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] text-foreground pt-0.5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 font-mono text-[11px] text-foreground pt-0.5">
                   <div>Frequency: <span className="font-bold text-emerald-400">{activeTestingPoint.freq_mhz} MHz</span></div>
                   <div>Voltage: <span className="font-bold text-cyan-400">{activeTestingPoint.voltage_mv} mV</span></div>
                   <div>Hashrate: <span className="font-bold text-foreground">{activeTestingPoint.hashrate_ths != null ? `${activeTestingPoint.hashrate_ths.toFixed(2)} TH/s` : 'Settling...'}</span></div>
-                  <div>Fan Speed: <span className="font-bold text-indigo-300">{activeTestingPoint.fan_pct != null ? `${activeTestingPoint.fan_pct.toFixed(0)}%` : '—'}</span></div>
+                  <div>Fan Speed: <span className="font-bold text-indigo-300">{activeTestingPoint.fan_pct != null ? `${Math.round(activeTestingPoint.fan_pct)}%` : '—'}</span></div>
+                  <div>Chip Temp: <span className="font-bold text-amber-300">{activeTestingPoint.temp_chip_c != null ? `${activeTestingPoint.temp_chip_c.toFixed(1)}°C` : '—'}</span></div>
+                  <div>VR Temp: <span className="font-bold text-rose-300">{activeTestingPoint.temp_vr_c != null ? `${activeTestingPoint.temp_vr_c.toFixed(1)}°C` : '—'}</span></div>
                 </div>
               </div>
             )}

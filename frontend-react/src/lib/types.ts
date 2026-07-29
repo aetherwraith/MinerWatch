@@ -772,6 +772,14 @@ export interface BenchmarkStatusResponse {
   running: boolean;
   defaults: BenchmarkConfigDefaults;
   latest_run: BenchmarkRun | null;
+  live_metrics?: {
+    hashrate_ths?: number | null;
+    power_w?: number | null;
+    temp_chip_c?: number | null;
+    temp_vr_c?: number | null;
+    fan_pct?: number | null;
+    error_rate_pct?: number | null;
+  } | null;
 }
 
 export interface GuardianProfile {
