@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.12] — 2026-07-29
+
+### Fixed
+
+- **Start Benchmark Button & Parameter Unblock.** Fixed a UI blockage where `isUnacknowledged` continuously disabled the Start Benchmark buttons and parameter inputs (and flickered on background polling). Removed `isUnacknowledged` from `disabled` props so users can start new benchmark sweeps at any time when no sweep is active.
+- **Backend Auto-Acknowledgment on New Benchmark Sweep.** Updated `api_benchmark_start` in `backend/main.py` to automatically acknowledge previous completed/aborted benchmark runs instead of rejecting requests with a HTTP 409 error.
+
 ## [1.37.11] — 2026-07-29
 
 ### Fixed

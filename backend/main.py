@@ -2134,7 +2134,7 @@ async def api_benchmark_start(miner_id: int, payload: BenchmarkStartPayload) -> 
 
     latest = await db.get_latest_miner_benchmark(miner_id)
     if latest and not latest.get("acknowledged") and latest.get("status") in ("completed", "aborted"):
-        raise HTTPException(409, "A previous benchmark run completed and is waiting to be acknowledged. Please acknowledge or save profiles before starting a new benchmark.")
+        await db.acknowledge_miner_benchmark(miner_id, latest["id"])
 
     config = payload.model_dump()
     try:

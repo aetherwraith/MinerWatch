@@ -49,7 +49,7 @@ function getTempColorClass(temp: number | null | undefined, maxCap: number): str
 }
 
 export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
-  const { data, isLoading } = useMinerBenchmarkStatus(minerId);
+  const { data } = useMinerBenchmarkStatus(minerId);
   const { data: profilesData } = useGuardianProfiles(minerId);
   const startMutation = useStartBenchmark(minerId);
   const cancelMutation = useCancelBenchmark(minerId);
@@ -343,8 +343,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               variant="default"
               size="sm"
               onClick={handleStart}
-              disabled={startMutation.isPending || isLoading || isUnacknowledged}
-              title={isUnacknowledged ? 'Please acknowledge completed benchmark below before starting a new benchmark.' : undefined}
+              disabled={running || startMutation.isPending}
               className="h-9 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs disabled:opacity-50"
             >
               <Play className="h-4 w-4 fill-current" />
@@ -728,7 +727,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={minFreq}
                   onChange={(e) => setMinFreq(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -738,7 +737,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={maxFreq}
                   onChange={(e) => setMaxFreq(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -748,7 +747,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={freqStep}
                   onChange={(e) => setFreqStep(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -759,7 +758,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={minVolt}
                   onChange={(e) => setMinVolt(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -769,7 +768,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={maxVolt}
                   onChange={(e) => setMaxVolt(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -779,7 +778,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={voltStep}
                   onChange={(e) => setVoltStep(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -790,7 +789,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   type="number"
                   value={dwellTime}
                   onChange={(e) => setDwellTime(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -801,7 +800,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   step="0.5"
                   value={maxErrorRate}
                   onChange={(e) => setMaxErrorRate(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 text-xs font-mono"
                 />
               </div>
@@ -813,7 +812,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   max={300}
                   value={earlySkipSec}
                   onChange={(e) => setEarlySkipSec(Number(e.target.value))}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   title="Min observation window before skipping non-stabilizing or out-of-bounds combinations early."
                   className="h-8 text-xs font-mono"
                 />
@@ -823,7 +822,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <select
                   value={benchFanMode}
                   onChange={(e) => setBenchFanMode(e.target.value as any)}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs font-mono text-foreground focus:outline-none"
                 >
                   <option value="pin">Fixed Fan Speed (%)</option>
@@ -841,7 +840,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                     max={100}
                     value={pinFanPct}
                     onChange={(e) => setPinFanPct(Number(e.target.value))}
-                    disabled={running || isUnacknowledged}
+                    disabled={running}
                     className="h-8 text-xs font-mono"
                   />
                 </div>
@@ -854,7 +853,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                     max={100}
                     value={quietFanMaxPct}
                     onChange={(e) => setQuietFanMaxPct(Number(e.target.value))}
-                    disabled={running || isUnacknowledged}
+                    disabled={running}
                     placeholder="e.g. 65"
                     className="h-8 text-xs font-mono border-indigo-500/40 focus:border-indigo-400"
                   />
@@ -870,7 +869,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   id="microtune-chk"
                   checked={enableMicrotuning}
                   onChange={(e) => setEnableMicrotuning(e.target.checked)}
-                  disabled={running || isUnacknowledged}
+                  disabled={running}
                   className="rounded border-border text-emerald-500 focus:ring-emerald-500"
                 />
                 <label htmlFor="microtune-chk" className="font-semibold text-foreground cursor-pointer select-none">
@@ -888,7 +887,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       max={20}
                       value={microFreqStep}
                       onChange={(e) => setMicroFreqStep(Number(e.target.value))}
-                      disabled={running || isUnacknowledged}
+                      disabled={running}
                       className="h-8 text-xs font-mono"
                     />
                   </div>
@@ -900,7 +899,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       max={20}
                       value={microVoltStep}
                       onChange={(e) => setMicroVoltStep(Number(e.target.value))}
-                      disabled={running || isUnacknowledged}
+                      disabled={running}
                       className="h-8 text-xs font-mono"
                     />
                   </div>
@@ -911,16 +910,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
             {/* Start Sweep Action Button inside Parameters Card */}
             <div className="pt-4 border-t border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">
-                {isUnacknowledged
-                  ? 'Please acknowledge completed benchmark results above before starting a new sweep.'
-                  : `Configured sweep: ${minFreq}–${maxFreq} MHz in ${freqStep} MHz steps, ${minVolt}–${maxVolt} mV in ${voltStep} mV steps.`}
+                {`Configured sweep: ${minFreq}–${maxFreq} MHz in ${freqStep} MHz steps, ${minVolt}–${maxVolt} mV in ${voltStep} mV steps.`}
               </span>
               <Button
                 variant="default"
                 size="sm"
                 onClick={handleStart}
-                disabled={startMutation.isPending || isLoading || isUnacknowledged}
-                title={isUnacknowledged ? 'Please acknowledge completed benchmark results above before starting a new benchmark.' : undefined}
+                disabled={running || startMutation.isPending}
                 className="h-9 px-5 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs disabled:opacity-50 shrink-0 self-end sm:self-auto"
               >
                 <Play className="h-4 w-4 fill-current" />
