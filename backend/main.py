@@ -2061,18 +2061,17 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
 
 
 def _get_target_max_temps(miner: dict) -> tuple[float, float]:
-    from .config import DEFAULT_VR_TEMP_HIGH_C, DEFAULT_CHIP_TEMP_HIGH_C
     max_vr_temp = miner.get("guardian_max_vr_temp_c")
     if not max_vr_temp and str(miner.get("guardian_temp_source") or "").lower() == "vr":
         max_vr_temp = miner.get("guardian_max_temp_c")
-    vr_high = float(max_vr_temp) if max_vr_temp else DEFAULT_VR_TEMP_HIGH_C
+    vr_high = float(max_vr_temp) if max_vr_temp else 82.0
 
     max_chip_temp = miner.get("guardian_max_chip_temp_c")
     if not max_chip_temp and str(miner.get("guardian_temp_source") or "").lower() == "chip":
         max_chip_temp = miner.get("guardian_max_temp_c")
     if not max_chip_temp and miner.get("auto_target_c") is not None:
         max_chip_temp = miner.get("auto_target_c")
-    chip_high = float(max_chip_temp) if max_chip_temp else DEFAULT_CHIP_TEMP_HIGH_C
+    chip_high = float(max_chip_temp) if max_chip_temp else 68.0
 
     return chip_high, vr_high
 

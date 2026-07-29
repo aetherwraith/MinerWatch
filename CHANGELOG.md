@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.14] — 2026-07-29
+
+### Fixed
+
+- **Benchmark Status Endpoint Target Temperature Defaults Fix.** Fixed an `ImportError` in `_get_target_max_temps` in `backend/main.py` where nonexistent constant names were referenced, causing `/api/miners/{id}/benchmark/status` to throw 500 errors on polling. Resolved defaults to fallback values ($68.0^\circ\text{C}$ Chip / $82.0^\circ\text{C}$ VR), restoring `200 OK` status and live benchmark progress streaming.
+
 ## [1.37.13] — 2026-07-29
 
 ### Fixed
