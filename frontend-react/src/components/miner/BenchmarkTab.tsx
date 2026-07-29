@@ -33,6 +33,21 @@ interface BenchmarkTabProps {
   minerId: number;
 }
 
+function getTempColorClass(temp: number | null | undefined, maxCap: number): string {
+  if (temp == null) return 'text-muted-foreground';
+  const diff = maxCap - temp;
+  if (diff <= 0) {
+    return 'text-rose-400 font-extrabold animate-pulse'; // At or exceeding max target cap
+  }
+  if (diff <= 4) {
+    return 'text-orange-400 font-bold'; // Within 4°C of max target cap
+  }
+  if (diff <= 10) {
+    return 'text-amber-300 font-bold'; // Within 10°C of max target cap
+  }
+  return 'text-emerald-400 font-bold'; // Cool & optimal (>10°C headroom)
+}
+
 export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const { data, isLoading } = useMinerBenchmarkStatus(minerId);
   const { data: profilesData } = useGuardianProfiles(minerId);
@@ -42,6 +57,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const ackMutation = useAcknowledgeBenchmark(minerId);
 
   const defaults = data?.defaults;
+  const maxChipTempCap = defaults?.target_max_chip_temp_c ?? 68;
+  const maxVrTempCap = defaults?.target_max_vr_temp_c ?? 82;
   const running = !!data?.running;
   const latestRun: BenchmarkRun | null = data?.latest_run ?? null;
   const existingProfiles = profilesData?.profiles ?? [];
@@ -545,8 +562,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <div>Voltage: <span className="font-bold text-cyan-400">{activeTestingPoint.voltage_mv} mV</span></div>
                   <div>Hashrate: <span className="font-bold text-foreground">{activeTestingPoint.hashrate_ths != null ? `${activeTestingPoint.hashrate_ths.toFixed(2)} TH/s` : 'Settling...'}</span></div>
                   <div>Fan Speed: <span className="font-bold text-indigo-300">{activeTestingPoint.fan_pct != null ? `${Math.round(activeTestingPoint.fan_pct)}%` : '—'}</span></div>
-                  <div>Chip Temp: <span className="font-bold text-amber-300">{activeTestingPoint.temp_chip_c != null ? `${activeTestingPoint.temp_chip_c.toFixed(1)}°C` : '—'}</span></div>
-                  <div>VR Temp: <span className="font-bold text-rose-300">{activeTestingPoint.temp_vr_c != null ? `${activeTestingPoint.temp_vr_c.toFixed(1)}°C` : '—'}</span></div>
+                  <div>Chip Temp: <span className={getTempColorClass(activeTestingPoint.temp_chip_c, maxChipTempCap)}>{activeTestingPoint.temp_chip_c != null ? `${activeTestingPoint.temp_chip_c.toFixed(1)}°C` : '—'}</span></div>
+                  <div>VR Temp: <span className={getTempColorClass(activeTestingPoint.temp_vr_c, maxVrTempCap)}>{activeTestingPoint.temp_vr_c != null ? `${activeTestingPoint.temp_vr_c.toFixed(1)}°C` : '—'}</span></div>
                 </div>
               </div>
             )}
@@ -997,6 +1014,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       <th className="p-2">Efficiency</th>
                       <th className="p-2">Fan Speed</th>
                       <th className="p-2">Chip Temp</th>
+                      <th className="p-2">VR Temp</th>
                       <th className="p-2">Status</th>
                     </tr>
                   </thead>
@@ -1023,7 +1041,16 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                         <td className="p-2 font-mono text-muted-foreground">
                           {s.fan_pct != null ? `${s.fan_pct.toFixed(0)}%` : '—'}
                         </td>
-                        <td className="p-2 font-mono">{s.chip_temp_c ? `${s.chip_temp_c.toFixed(1)}°C` : '—'}</td>
+                        <td className="p-2 font-mono">
+                          <span className={getTempColorClass(s.chip_temp_c, maxChipTempCap)}>
+                            {s.chip_temp_c != null ? `${s.chip_temp_c.toFixed(1)}°C` : '—'}
+                          </span>
+                        </td>
+                        <td className="p-2 font-mono">
+                          <span className={getTempColorClass(s.vr_temp_c, maxVrTempCap)}>
+                            {s.vr_temp_c != null ? `${s.vr_temp_c.toFixed(1)}°C` : '—'}
+                          </span>
+                        </td>
                         <td className="p-2">
                           {s.stable ? (
                             <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-400 border-emerald-500/30">

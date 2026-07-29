@@ -2072,6 +2072,7 @@ async def api_benchmark_status(miner_id: int) -> dict:
     latest_run = await db.get_latest_miner_benchmark(miner_id)
 
     curr_freq = _miner_current_freq(miner_id) or 500
+    target_chip, target_vr = guardian.get_target_max_temps(miner)
 
     defaults = {
         "min_freq_mhz": max(100, curr_freq - 100),
@@ -2084,6 +2085,8 @@ async def api_benchmark_status(miner_id: int) -> dict:
         "max_error_rate_pct": 1.1,
         "early_skip_sec": 60,
         "current_freq_mhz": curr_freq,
+        "target_max_chip_temp_c": target_chip,
+        "target_max_vr_temp_c": target_vr,
     }
 
     sample = poller.last_results.get(miner_id)

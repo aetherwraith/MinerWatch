@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.10] — 2026-07-29
+
+### Added
+
+- **Proximity-Based Dynamic Temperature Color-Coding.** Added dynamic temperature color classes (`getTempColorClass`) to Chip and VR temperature displays on the Benchmark status screen (Active Test Point banner and sample matrix table). Temperatures change color dynamically relative to target max caps (emerald for $>10^\circ\text{C}$ headroom, warm amber within $10^\circ\text{C}$, warning orange within $4^\circ\text{C}$, and pulsing rose red when at/exceeding max target). Surfaced VR Temp column in sample matrix table.
+
 ## [1.37.9] — 2026-07-29
 
 ### Added

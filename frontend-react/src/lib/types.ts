@@ -711,6 +711,8 @@ export interface BenchmarkConfigDefaults {
   max_error_rate_pct: number;
   early_skip_sec?: number;
   current_freq_mhz: number;
+  target_max_chip_temp_c?: number;
+  target_max_vr_temp_c?: number;
 }
 
 export interface BenchmarkSample {
