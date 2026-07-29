@@ -586,9 +586,10 @@ export function GuardianPanel({ data }: Props) {
         <GuardianProfilesAndSchedules
           minerId={miner.id}
           currentFreq={currentFreq}
+          minerVolt={s?.live?.voltage_mv}
           activeProfile={s?.active_profile}
           minerFanMode={miner.fan_mode}
-          minerFanSpeed={miner.fan_min_override}
+          minerFanSpeed={miner.fan_min_override ?? miner.fan_max_override}
         />
 
         {/* Governor Chart & Collapsible Decision Logs */}
@@ -689,12 +690,14 @@ export function GuardianPanel({ data }: Props) {
 function GuardianProfilesAndSchedules({
   minerId,
   currentFreq,
+  minerVolt,
   activeProfile,
   minerFanMode,
   minerFanSpeed,
 }: {
   minerId: number;
   currentFreq: number | null;
+  minerVolt?: number | null;
   activeProfile?: string | null;
   minerFanMode?: string | null;
   minerFanSpeed?: number | null;
@@ -712,18 +715,27 @@ function GuardianProfilesAndSchedules({
 
   const [newProfileName, setNewProfileName] = useState('');
   const [profFreq, setProfFreq] = useState<number | ''>(currentFreq ?? 500);
-  const [profVolt, setProfVolt] = useState<number | ''>('');
-  const [profFanMode, setProfFanMode] = useState<string>('manual');
+  const [profVolt, setProfVolt] = useState<number | ''>(minerVolt ?? '');
+  const [profFanMode, setProfFanMode] = useState<string>((minerFanMode || 'manual').toLowerCase());
   const [customFanPct, setCustomFanPct] = useState<number>(minerFanSpeed ?? 60);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [schedTime, setSchedTime] = useState('08:00');
   const [schedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 
   useEffect(() => {
-    if (currentFreq && profFreq === 500) {
+    if (currentFreq && (profFreq === 500 || profFreq === '')) {
       setProfFreq(currentFreq);
     }
-  }, [currentFreq]);
+    if (minerVolt && profVolt === '') {
+      setProfVolt(minerVolt);
+    }
+    if (minerFanMode && profFanMode === 'manual') {
+      setProfFanMode(minerFanMode.toLowerCase());
+    }
+    if (minerFanSpeed && customFanPct === 60) {
+      setCustomFanPct(minerFanSpeed);
+    }
+  }, [currentFreq, minerVolt, minerFanMode, minerFanSpeed]);
 
   const handleSaveProfile = () => {
     if (!newProfileName.trim()) return;

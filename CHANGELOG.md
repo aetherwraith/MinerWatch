@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.2] — 2026-07-29
+
+### Changed
+
+- **Auto-Populate Profile Defaults with Live Miner Settings.** Updated the Profile Save form in `GuardianPanel` to automatically pre-fill all inputs (Frequency, Core Voltage, Fan Mode, and Manual Fan Speed %) with the miner's current live telemetry and configuration values.
+
 ## [1.35.1] — 2026-07-29
 
 ### Fixed
