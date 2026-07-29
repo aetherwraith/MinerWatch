@@ -711,11 +711,19 @@ function GuardianProfilesAndSchedules({
   const schedules = schedData?.schedules ?? [];
 
   const [newProfileName, setNewProfileName] = useState('');
-  const [profFanMode, setProfFanMode] = useState<string>('current');
-  const [customFanPct, setCustomFanPct] = useState<number>(minerFanSpeed ?? 50);
+  const [profFreq, setProfFreq] = useState<number | ''>(currentFreq ?? 500);
+  const [profVolt, setProfVolt] = useState<number | ''>('');
+  const [profFanMode, setProfFanMode] = useState<string>('manual');
+  const [customFanPct, setCustomFanPct] = useState<number>(minerFanSpeed ?? 60);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [schedTime, setSchedTime] = useState('08:00');
   const [schedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+
+  useEffect(() => {
+    if (currentFreq && profFreq === 500) {
+      setProfFreq(currentFreq);
+    }
+  }, [currentFreq]);
 
   const handleSaveProfile = () => {
     if (!newProfileName.trim()) return;
@@ -725,28 +733,33 @@ function GuardianProfilesAndSchedules({
 
     if (profFanMode === 'manual') {
       targetFanMode = 'manual';
-      targetFanSpeed = customFanPct;
+      targetFanSpeed = Number(customFanPct) || 60;
     } else if (profFanMode === 'minerwatch') {
       targetFanMode = 'minerwatch';
-      targetFanSpeed = customFanPct;
+      targetFanSpeed = Number(customFanPct) || 80;
     } else if (profFanMode === 'firmware') {
       targetFanMode = 'firmware';
     } else {
-      // current
-      targetFanMode = minerFanMode ?? 'firmware';
-      targetFanSpeed = minerFanSpeed ?? 50;
+      targetFanMode = (minerFanMode || 'firmware').toLowerCase();
+      targetFanSpeed = minerFanSpeed ?? 60;
     }
+
+    const freqVal = profFreq !== '' ? Number(profFreq) : (currentFreq ?? 500);
+    const voltVal = profVolt !== '' ? Number(profVolt) : undefined;
 
     saveProfile.mutate(
       {
         name: newProfileName.trim(),
-        max_freq_mhz: currentFreq ?? 500,
+        max_freq_mhz: freqVal,
+        voltage_mv: voltVal,
         fan_mode: targetFanMode as any,
         fan_speed_pct: targetFanMode === 'manual' ? targetFanSpeed : undefined,
         fan_max_pct: targetFanSpeed,
       },
       {
-        onSuccess: () => setNewProfileName(''),
+        onSuccess: () => {
+          setNewProfileName('');
+        },
       }
     );
   };
@@ -849,7 +862,7 @@ function GuardianProfilesAndSchedules({
       <div className="p-3.5 rounded-lg border border-border/60 bg-muted/20 space-y-3 text-xs">
         <div className="font-semibold text-foreground">Save or Create Guardian Profile</div>
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-          <div className="sm:col-span-4 space-y-1">
+          <div className="sm:col-span-3 space-y-1">
             <Label className="text-xs text-muted-foreground">Profile Name</Label>
             <Input
               placeholder="e.g. Quiet Profile (Day)"
@@ -859,24 +872,46 @@ function GuardianProfilesAndSchedules({
             />
           </div>
 
+          <div className="sm:col-span-2 space-y-1">
+            <Label className="text-xs text-muted-foreground">Freq (MHz)</Label>
+            <Input
+              type="number"
+              value={profFreq}
+              onChange={(e) => setProfFreq(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="500"
+              className="h-9 text-xs font-mono w-full"
+            />
+          </div>
+
+          <div className="sm:col-span-2 space-y-1">
+            <Label className="text-xs text-muted-foreground">Volt (mV, opt)</Label>
+            <Input
+              type="number"
+              value={profVolt}
+              onChange={(e) => setProfVolt(e.target.value === '' ? '' : Number(e.target.value))}
+              placeholder="Auto"
+              className="h-9 text-xs font-mono w-full"
+            />
+          </div>
+
           <div className="sm:col-span-3 space-y-1">
             <Label className="text-xs text-muted-foreground">Fan Control Mode</Label>
             <select
               value={profFanMode}
               onChange={(e) => setProfFanMode(e.target.value)}
-              className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 w-full rounded-md border border-border bg-background px-2 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
-              <option value="current">Keep Current Fan Mode</option>
               <option value="manual">Manual Fan Speed (%)</option>
               <option value="minerwatch">Auto-Fan (MinerWatch)</option>
               <option value="firmware">Firmware Auto</option>
+              <option value="current">Keep Current Fan Mode</option>
             </select>
           </div>
 
           {profFanMode === 'manual' || profFanMode === 'minerwatch' ? (
             <div className="sm:col-span-2 space-y-1">
               <Label className="text-xs text-muted-foreground">
-                {profFanMode === 'manual' ? 'Manual Fan %' : 'Max Fan Limit %'}
+                {profFanMode === 'manual' ? 'Manual Fan %' : 'Max Fan %'}
               </Label>
               <Input
                 type="number"
@@ -887,13 +922,9 @@ function GuardianProfilesAndSchedules({
                 className="h-9 text-xs font-mono w-full"
               />
             </div>
-          ) : (
-            <div className="sm:col-span-2 text-xs text-muted-foreground self-center">
-              Freq: {currentFreq ?? 500} MHz
-            </div>
-          )}
+          ) : null}
 
-          <div className="sm:col-span-3">
+          <div className={`${profFanMode === 'firmware' || profFanMode === 'current' ? 'sm:col-span-2' : 'sm:col-span-12 sm:col-start-1'} pt-1`}>
             <Button
               variant="secondary"
               size="sm"

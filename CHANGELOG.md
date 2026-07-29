@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.1] — 2026-07-29
+
+### Fixed
+
+- **Manual Profile Creation Fix.** Fixed profile creation validation by loosening strict Pydantic range bounds on `ProfileSavePayload` in the backend API and providing explicit, dedicated form inputs for Profile Name, Target Frequency (MHz), Target Voltage (mV), Fan Control Mode, and Manual Fan Speed (%) in the UI.
+
 ## [1.35.0] — 2026-07-29
 
 ### Added

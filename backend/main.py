@@ -1823,14 +1823,14 @@ class BenchmarkApplyPayload(BaseModel):
 class ProfileSavePayload(BaseModel):
     id: int | None = None
     name: str = Field(min_length=1, max_length=100)
-    max_freq_mhz: int | None = Field(default=None, ge=100, le=1200)
-    voltage_mv: int | None = Field(default=None, ge=900, le=1500)
-    fan_mode: str | None = Field(default=None, pattern="^(manual|minerwatch|firmware)$")
-    fan_speed_pct: int | None = Field(default=None, ge=10, le=100)
-    fan_max_pct: int | None = Field(default=None, ge=10, le=100)
-    max_power_w: float | None = Field(default=None, ge=10, le=500)
-    max_chip_temp_c: float | None = Field(default=None, ge=40, le=90)
-    max_vr_temp_c: float | None = Field(default=None, ge=40, le=110)
+    max_freq_mhz: int | None = None
+    voltage_mv: int | None = None
+    fan_mode: str | None = None
+    fan_speed_pct: int | None = None
+    fan_max_pct: int | None = None
+    max_power_w: float | None = None
+    max_chip_temp_c: float | None = None
+    max_vr_temp_c: float | None = None
 
 
 class ScheduleSavePayload(BaseModel):
