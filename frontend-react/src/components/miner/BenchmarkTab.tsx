@@ -167,8 +167,40 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     }, null as (typeof samples)[0] | null);
   }, [liveStableSamples, latestRun?.fan_mode, latestRun?.quiet_fan_max_pct, benchFanMode, quietFanMaxPct]);
 
-  // Current parameters under active test
-  const currentTestingSample = samples.length > 0 ? samples[samples.length - 1] : null;
+  // Generate planned combinations to determine active target parameters for any step (including step 1!)
+  const plannedCombinations = useMemo(() => {
+    const minF = latestRun?.min_freq_mhz ?? minFreq;
+    const maxF = latestRun?.max_freq_mhz ?? maxFreq;
+    const stepF = latestRun?.freq_step_mhz ?? freqStep ?? 10;
+    const minV = latestRun?.min_voltage_mv ?? minVolt;
+    const maxV = latestRun?.max_voltage_mv ?? maxVolt;
+    const stepV = latestRun?.voltage_step_mv ?? voltStep ?? 10;
+
+    const list: { freq_mhz: number; voltage_mv: number }[] = [];
+    if (stepF <= 0 || stepV <= 0) return list;
+    for (let f = minF; f <= maxF; f += stepF) {
+      for (let v = minV; v <= maxV; v += stepV) {
+        list.push({ freq_mhz: f, voltage_mv: v });
+      }
+    }
+    return list;
+  }, [latestRun, minFreq, maxFreq, freqStep, minVolt, maxVolt, voltStep]);
+
+  // Current parameters under active test (works from Step 1 onwards!)
+  const activeTestingPoint = useMemo(() => {
+    const activeStepIdx = Math.max(0, (latestRun?.current_step || 1) - 1);
+    const plan = plannedCombinations[activeStepIdx] ?? plannedCombinations[0] ?? { freq_mhz: minFreq, voltage_mv: minVolt };
+    
+    // Check if we have completed a sample for this step yet
+    const sampleForStep = samples[activeStepIdx] ?? samples[samples.length - 1] ?? null;
+
+    return {
+      freq_mhz: plan.freq_mhz,
+      voltage_mv: plan.voltage_mv,
+      hashrate_ths: sampleForStep?.hashrate_ths ?? null,
+      fan_pct: sampleForStep?.fan_pct ?? null,
+    };
+  }, [latestRun?.current_step, plannedCombinations, samples, minFreq, minVolt]);
 
   // Display values for candidate cards
   const displayEffFreq = latestRun?.best_eff_freq ?? liveBestEff?.freq_mhz ?? null;
@@ -446,8 +478,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               />
             </div>
 
-            {/* Current Operating Point Under Active Test */}
-            {currentTestingSample && (
+            {/* Current Operating Point Under Active Test (Renders from Step 1) */}
+            {activeTestingPoint && (
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/15 p-3 text-xs space-y-1.5">
                 <div className="flex items-center justify-between font-mono font-semibold text-emerald-300">
                   <span className="flex items-center gap-1.5">
@@ -462,10 +494,10 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   </Badge>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] text-foreground pt-0.5">
-                  <div>Frequency: <span className="font-bold text-emerald-400">{currentTestingSample.freq_mhz} MHz</span></div>
-                  <div>Voltage: <span className="font-bold text-cyan-400">{currentTestingSample.voltage_mv} mV</span></div>
-                  <div>Hashrate: <span className="font-bold text-foreground">{currentTestingSample.hashrate_ths != null ? `${currentTestingSample.hashrate_ths.toFixed(2)} TH/s` : 'Settling...'}</span></div>
-                  <div>Fan Speed: <span className="font-bold text-indigo-300">{currentTestingSample.fan_pct != null ? `${currentTestingSample.fan_pct.toFixed(0)}%` : '—'}</span></div>
+                  <div>Frequency: <span className="font-bold text-emerald-400">{activeTestingPoint.freq_mhz} MHz</span></div>
+                  <div>Voltage: <span className="font-bold text-cyan-400">{activeTestingPoint.voltage_mv} mV</span></div>
+                  <div>Hashrate: <span className="font-bold text-foreground">{activeTestingPoint.hashrate_ths != null ? `${activeTestingPoint.hashrate_ths.toFixed(2)} TH/s` : 'Settling...'}</span></div>
+                  <div>Fan Speed: <span className="font-bold text-indigo-300">{activeTestingPoint.fan_pct != null ? `${activeTestingPoint.fan_pct.toFixed(0)}%` : '—'}</span></div>
                 </div>
               </div>
             )}
@@ -864,7 +896,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <RefreshCw className="h-6 w-6 animate-spin text-emerald-400 mb-2.5" />
                 <span className="font-semibold text-foreground text-sm">Sampling Step 1 in Progress...</span>
                 <span className="text-muted-foreground mt-1 max-w-sm">
-                  Collecting baseline telemetry and thermal stability measurements for {currentTestingSample?.freq_mhz ?? minFreq} MHz @ {currentTestingSample?.voltage_mv ?? minVolt} mV. Telemetry graph will render as soon as Step 1 settles ({dwellTime}s dwell).
+                  Collecting baseline telemetry and thermal stability measurements for {activeTestingPoint?.freq_mhz ?? minFreq} MHz @ {activeTestingPoint?.voltage_mv ?? minVolt} mV. Telemetry graph will render as soon as Step 1 settles ({dwellTime}s dwell).
                 </span>
               </div>
             )}

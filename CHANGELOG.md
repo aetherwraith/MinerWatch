@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.6] — 2026-07-29
+
+### Fixed
+
+- **Active Test Point Initialization on Step 1.** Synthesized planned operating points so the Active Test Point banner renders target frequency (MHz) and core voltage (mV) from Step 1 before the first dwell sample is committed to the database.
+
 ## [1.36.5] — 2026-07-29
 
 ### Added
