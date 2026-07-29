@@ -210,7 +210,7 @@ async def _run_benchmark_sweep(
             abort_reason = None
             dwell_samples: list[dict[str, Any]] = []
 
-            for second in range(dwell_time_s):
+            for second in range(1, dwell_time_s + 1):
                 if _abort_flags.get(miner_id):
                     dwell_aborted = True
                     break
@@ -224,12 +224,48 @@ async def _run_benchmark_sweep(
                     chip_temp = latest.get("temp_chip_c")
                     vr_temp = latest.get("temp_vr_c")
 
-                    # Guardian Thermal Safety Net Check!
+                    # 1. Guardian Thermal Safety Net Check!
                     if (chip_temp and chip_temp >= max_chip_temp + 2.0) or (vr_temp and vr_temp >= max_vr_temp + 2.0):
                         dwell_aborted = True
                         abort_reason = f"Thermal safety trigger (Chip: {chip_temp}°C, VR: {vr_temp}°C)"
                         logger.warning("Safety net triggered on benchmark #%d miner #%d: %s", benchmark_id, miner_id, abort_reason)
                         break
+
+                    # 2. Early Dwell Skip for Long Dwell Periods (dwell_time_s >= 60)
+                    # If we've observed at least 25s of telemetry and metrics clearly indicate instability:
+                    if dwell_time_s >= 60 and second >= 25 and len(dwell_samples) >= 5:
+                        recent_window = dwell_samples[-5:]
+                        def _r_avg(k: str) -> float | None:
+                            v_list = [s[k] for s in recent_window if s.get(k) is not None]
+                            return (sum(v_list) / len(v_list)) if v_list else None
+
+                        cur_hr = _r_avg("hashrate_ths") or 0.0
+                        cur_hw_err = _r_avg("error_pct") or 0.0
+                        cur_rej_pct = _r_avg("reject_pct") or 0.0
+                        cur_eff_err = max(cur_hw_err, cur_rej_pct)
+
+                        exp_hr = None
+                        if miner:
+                            sc = miner.get("small_core_count")
+                            ac = miner.get("asic_count")
+                            if sc and ac:
+                                exp_hr = (freq * sc * ac) / 1_000_000.0
+
+                        severe_errors = cur_eff_err >= max(5.0, max_error_rate_pct * 3.5)
+                        severe_hr_deficit = exp_hr is not None and exp_hr > 0 and cur_hr < (exp_hr * 0.5)
+                        zero_hashrate = cur_hr == 0.0
+
+                        if severe_errors or severe_hr_deficit or zero_hashrate:
+                            dwell_aborted = True
+                            if severe_errors:
+                                abort_reason = f"Early dwell skip ({second}s): Severe error rate ({cur_eff_err:.1f}%)"
+                            elif severe_hr_deficit:
+                                abort_reason = f"Early dwell skip ({second}s): Hashrate {cur_hr:.2f} TH/s < 50% theoretical ({exp_hr:.2f} TH/s)"
+                            else:
+                                abort_reason = f"Early dwell skip ({second}s): Zero hashrate output"
+
+                            logger.info("Early dwell skip on benchmark #%d miner #%d step (%d MHz @ %d mV): %s", benchmark_id, miner_id, freq, volt, abort_reason)
+                            break
 
             if _abort_flags.get(miner_id):
                 await db.update_miner_benchmark(benchmark_id, status="aborted", current_step=idx + 1)
@@ -354,7 +390,7 @@ async def _run_benchmark_sweep(
                     m_aborted = False
                     m_abort_reason = None
 
-                    for _ in range(dwell_time_s):
+                    for m_sec in range(1, dwell_time_s + 1):
                         if _abort_flags.get(miner_id):
                             m_aborted = True
                             break
@@ -368,6 +404,41 @@ async def _run_benchmark_sweep(
                                 m_aborted = True
                                 m_abort_reason = f"Thermal safety trigger (Chip: {chip_t}°C, VR: {vr_t}°C)"
                                 break
+
+                            # Early Dwell Skip for Long Dwell Periods (dwell_time_s >= 60)
+                            if dwell_time_s >= 60 and m_sec >= 25 and len(m_dwell_samples) >= 5:
+                                m_recent = m_dwell_samples[-5:]
+                                def _mr_avg(k: str) -> float | None:
+                                    v_list = [s[k] for s in m_recent if s.get(k) is not None]
+                                    return (sum(v_list) / len(v_list)) if v_list else None
+
+                                cur_hr = _mr_avg("hashrate_ths") or 0.0
+                                cur_hw_err = _mr_avg("error_pct") or 0.0
+                                cur_rej_pct = _mr_avg("reject_pct") or 0.0
+                                cur_eff_err = max(cur_hw_err, cur_rej_pct)
+
+                                exp_hr = None
+                                if miner:
+                                    sc = miner.get("small_core_count")
+                                    ac = miner.get("asic_count")
+                                    if sc and ac:
+                                        exp_hr = (f * sc * ac) / 1_000_000.0
+
+                                severe_errors = cur_eff_err >= max(5.0, max_error_rate_pct * 3.5)
+                                severe_hr_deficit = exp_hr is not None and exp_hr > 0 and cur_hr < (exp_hr * 0.5)
+                                zero_hashrate = cur_hr == 0.0
+
+                                if severe_errors or severe_hr_deficit or zero_hashrate:
+                                    m_aborted = True
+                                    if severe_errors:
+                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Severe error rate ({cur_eff_err:.1f}%)"
+                                    elif severe_hr_deficit:
+                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Hashrate {cur_hr:.2f} TH/s < 50% theoretical ({exp_hr:.2f} TH/s)"
+                                    else:
+                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Zero hashrate output"
+
+                                    logger.info("Microtuning early dwell skip on miner #%d step (%d MHz @ %d mV): %s", miner_id, f, v, m_abort_reason)
+                                    break
 
                     if m_aborted and _abort_flags.get(miner_id):
                         break

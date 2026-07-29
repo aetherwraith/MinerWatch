@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.4] — 2026-07-29
+
+### Added
+
+- **Early Dwell Combination Skipping for Long Dwell Periods.** Added early combination skip evaluation during long dwell times (`dwell_time_s >= 60`). If a candidate point demonstrates clear instability after 25s (severe hardware error rate $> 3.5\times$ threshold, hashrate $< 50\%$ theoretical, or zero output), it marks the sample as `Unstable` and skips immediately to the next candidate point.
+
 ## [1.37.3] — 2026-07-29
 
 ### Fixed
