@@ -1821,6 +1821,8 @@ class ProfileSavePayload(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     max_freq_mhz: int | None = Field(default=None, ge=100, le=1200)
     voltage_mv: int | None = Field(default=None, ge=900, le=1500)
+    fan_mode: str | None = Field(default=None, pattern="^(manual|minerwatch|firmware)$")
+    fan_speed_pct: int | None = Field(default=None, ge=10, le=100)
     fan_max_pct: int | None = Field(default=None, ge=10, le=100)
     max_power_w: float | None = Field(default=None, ge=10, le=500)
     max_chip_temp_c: float | None = Field(default=None, ge=40, le=90)
@@ -2200,14 +2202,24 @@ async def api_apply_guardian_profile(miner_id: int, profile_id: int) -> dict:
 
     freq = target.get("max_freq_mhz")
     volt = target.get("voltage_mv")
-    fan_max = target.get("fan_max_pct")
+    prof_fan_mode = target.get("fan_mode")
+    prof_fan_speed = target.get("fan_speed_pct") or target.get("fan_max_pct")
     max_power = target.get("max_power_w")
+
+    # If profile specifies fan mode, update miner fan mode and speed bounds in DB
+    if prof_fan_mode:
+        if prof_fan_mode == "manual" and prof_fan_speed:
+            await db.set_fan_config(miner_id, fan_mode="manual", fan_min_override=prof_fan_speed, fan_max_override=prof_fan_speed)
+        elif prof_fan_mode != "manual" and prof_fan_speed:
+            await db.set_fan_config(miner_id, fan_mode=prof_fan_mode, fan_max_override=prof_fan_speed)
+        else:
+            await db.set_fan_config(miner_id, fan_mode=prof_fan_mode)
 
     await db.set_guardian_config(
         miner_id,
         max_freq_mhz=freq,
         max_power_w=max_power,
-        fan_max_override=fan_max,
+        fan_max_override=prof_fan_speed if (prof_fan_mode != "manual") else None,
     )
     await db.set_active_guardian_profile(miner_id, target["name"])
     guardian.reset_miner(miner_id)
@@ -2218,10 +2230,15 @@ async def api_apply_guardian_profile(miner_id: int, profile_id: int) -> dict:
         except Exception as e:
             logger.warning("Failed applying profile freq/volt: %s", e)
 
-    fan_mode = (miner.get("fan_mode") or "firmware").lower()
-    if fan_max and fan_mode != "manual":
+    # Set physical fan speed on miner hardware driver
+    if prof_fan_mode == "manual" and prof_fan_speed:
         try:
-            await benchmark._set_fan_speed(miner_id, fan_max)
+            await benchmark._set_fan_speed(miner_id, prof_fan_speed)
+        except Exception as e:
+            logger.warning("Failed applying manual profile fan speed: %s", e)
+    elif prof_fan_speed and (prof_fan_mode or miner.get("fan_mode")) != "manual":
+        try:
+            await benchmark._set_fan_speed(miner_id, prof_fan_speed)
         except Exception as e:
             logger.warning("Failed applying profile fan speed: %s", e)
 

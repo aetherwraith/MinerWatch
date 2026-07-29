@@ -583,7 +583,13 @@ export function GuardianPanel({ data }: Props) {
         )}
 
         {/* Guardian Profiles & Scheduled Profile Switcher (Placed above history graphs and logs) */}
-        <GuardianProfilesAndSchedules minerId={miner.id} currentFreq={currentFreq} activeProfile={s?.active_profile} />
+        <GuardianProfilesAndSchedules
+          minerId={miner.id}
+          currentFreq={currentFreq}
+          activeProfile={s?.active_profile}
+          minerFanMode={miner.fan_mode}
+          minerFanSpeed={miner.fan_min_override}
+        />
 
         {/* Governor Chart & Collapsible Decision Logs */}
         <div className="space-y-4 border-t border-border pt-4">
@@ -684,10 +690,14 @@ function GuardianProfilesAndSchedules({
   minerId,
   currentFreq,
   activeProfile,
+  minerFanMode,
+  minerFanSpeed,
 }: {
   minerId: number;
   currentFreq: number | null;
   activeProfile?: string | null;
+  minerFanMode?: string | null;
+  minerFanSpeed?: number | null;
 }) {
   const { data: profData } = useGuardianProfiles(minerId);
   const { data: schedData } = useGuardianSchedules(minerId);
@@ -701,16 +711,39 @@ function GuardianProfilesAndSchedules({
   const schedules = schedData?.schedules ?? [];
 
   const [newProfileName, setNewProfileName] = useState('');
+  const [profFanMode, setProfFanMode] = useState<string>('current');
+  const [customFanPct, setCustomFanPct] = useState<number>(minerFanSpeed ?? 50);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [schedTime, setSchedTime] = useState('08:00');
   const [schedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 
   const handleSaveProfile = () => {
     if (!newProfileName.trim()) return;
+
+    let targetFanMode: string | undefined;
+    let targetFanSpeed: number | undefined;
+
+    if (profFanMode === 'manual') {
+      targetFanMode = 'manual';
+      targetFanSpeed = customFanPct;
+    } else if (profFanMode === 'minerwatch') {
+      targetFanMode = 'minerwatch';
+      targetFanSpeed = customFanPct;
+    } else if (profFanMode === 'firmware') {
+      targetFanMode = 'firmware';
+    } else {
+      // current
+      targetFanMode = minerFanMode ?? 'firmware';
+      targetFanSpeed = minerFanSpeed ?? 50;
+    }
+
     saveProfile.mutate(
       {
         name: newProfileName.trim(),
         max_freq_mhz: currentFreq ?? 500,
+        fan_mode: targetFanMode as any,
+        fan_speed_pct: targetFanMode === 'manual' ? targetFanSpeed : undefined,
+        fan_max_pct: targetFanSpeed,
       },
       {
         onSuccess: () => setNewProfileName(''),
@@ -744,6 +777,7 @@ function GuardianProfilesAndSchedules({
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {profiles.map((p) => {
           const isActive = activeProfile === p.name;
+          const displaySpeed = p.fan_speed_pct ?? p.fan_max_pct;
           return (
             <div
               key={p.id}
@@ -771,7 +805,13 @@ function GuardianProfilesAndSchedules({
                 <div className="text-[11px] text-muted-foreground space-y-0.5 font-mono">
                   {p.max_freq_mhz && <div>Frequency: <span className="text-foreground">{p.max_freq_mhz} MHz</span></div>}
                   {p.voltage_mv && <div>Voltage: <span className="text-foreground">{p.voltage_mv} mV</span></div>}
-                  {p.fan_max_pct && <div>Max Fan: <span className="text-foreground">{p.fan_max_pct}%</span></div>}
+                  {p.fan_mode === 'manual' ? (
+                    <div>Fan: <span className="text-emerald-400 font-semibold">Manual ({displaySpeed ?? 50}%)</span></div>
+                  ) : p.fan_mode === 'minerwatch' ? (
+                    <div>Fan: <span className="text-foreground">Auto-Fan (Max {displaySpeed ?? 100}%)</span></div>
+                  ) : displaySpeed ? (
+                    <div>Max Fan: <span className="text-foreground">{displaySpeed}%</span></div>
+                  ) : null}
                 </div>
               </div>
 
@@ -805,24 +845,67 @@ function GuardianProfilesAndSchedules({
         })}
       </div>
 
-      {/* Form: Save Current Settings as Profile */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-3 rounded-lg border border-border/60 bg-muted/20 text-xs">
-        <Input
-          placeholder="New Profile Name (e.g. Quiet Profile)"
-          value={newProfileName}
-          onChange={(e) => setNewProfileName(e.target.value)}
-          className="h-9 text-xs font-mono flex-1 min-w-0"
-        />
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleSaveProfile}
-          disabled={saveProfile.isPending || !newProfileName.trim()}
-          className="h-9 text-xs font-medium gap-1.5 shrink-0"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Save Current Settings as Profile
-        </Button>
+      {/* Form: Save / Create Profile */}
+      <div className="p-3.5 rounded-lg border border-border/60 bg-muted/20 space-y-3 text-xs">
+        <div className="font-semibold text-foreground">Save or Create Guardian Profile</div>
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+          <div className="sm:col-span-4 space-y-1">
+            <Label className="text-xs text-muted-foreground">Profile Name</Label>
+            <Input
+              placeholder="e.g. Quiet Profile (Day)"
+              value={newProfileName}
+              onChange={(e) => setNewProfileName(e.target.value)}
+              className="h-9 text-xs font-mono w-full"
+            />
+          </div>
+
+          <div className="sm:col-span-3 space-y-1">
+            <Label className="text-xs text-muted-foreground">Fan Control Mode</Label>
+            <select
+              value={profFanMode}
+              onChange={(e) => setProfFanMode(e.target.value)}
+              className="h-9 w-full rounded-md border border-border bg-background px-2.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="current">Keep Current Fan Mode</option>
+              <option value="manual">Manual Fan Speed (%)</option>
+              <option value="minerwatch">Auto-Fan (MinerWatch)</option>
+              <option value="firmware">Firmware Auto</option>
+            </select>
+          </div>
+
+          {profFanMode === 'manual' || profFanMode === 'minerwatch' ? (
+            <div className="sm:col-span-2 space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                {profFanMode === 'manual' ? 'Manual Fan %' : 'Max Fan Limit %'}
+              </Label>
+              <Input
+                type="number"
+                min={10}
+                max={100}
+                value={customFanPct}
+                onChange={(e) => setCustomFanPct(Number(e.target.value))}
+                className="h-9 text-xs font-mono w-full"
+              />
+            </div>
+          ) : (
+            <div className="sm:col-span-2 text-xs text-muted-foreground self-center">
+              Freq: {currentFreq ?? 500} MHz
+            </div>
+          )}
+
+          <div className="sm:col-span-3">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSaveProfile}
+              disabled={saveProfile.isPending || !newProfileName.trim()}
+              className="h-9 w-full text-xs font-medium gap-1.5 shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Save Profile
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Time-of-Day Profile Switcher Table & Add Form */}

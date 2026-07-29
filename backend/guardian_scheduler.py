@@ -84,11 +84,13 @@ async def check_and_execute_schedules() -> None:
             continue
 
         # Execute profile switch for miner!
-        profile_name = sched.get("profile_name") or "Scheduled Profile"
-        freq = sched.get("max_freq_mhz")
-        volt = sched.get("voltage_mv")
-        fan_max = sched.get("fan_max_pct")
-        max_power = sched.get("max_power_w")
+        prof = await db.get_guardian_profile_by_id(miner_id, sched["profile_id"])
+        profile_name = (prof.get("name") if prof else None) or sched.get("profile_name") or "Scheduled Profile"
+        freq = prof.get("max_freq_mhz") if prof else sched.get("max_freq_mhz")
+        volt = prof.get("voltage_mv") if prof else sched.get("voltage_mv")
+        prof_fan_mode = prof.get("fan_mode") if prof else None
+        prof_fan_speed = (prof.get("fan_speed_pct") or prof.get("fan_max_pct")) if prof else sched.get("fan_max_pct")
+        max_power = prof.get("max_power_w") if prof else sched.get("max_power_w")
 
         logger.info(
             "Executing scheduled profile switch '%s' (ID %d) for miner #%d at %s",
@@ -99,12 +101,21 @@ async def check_and_execute_schedules() -> None:
         )
 
         try:
+            # Update fan config if profile specifies fan_mode / speed
+            if prof_fan_mode:
+                if prof_fan_mode == "manual" and prof_fan_speed:
+                    await db.set_fan_config(miner_id, fan_mode="manual", fan_min_override=prof_fan_speed, fan_max_override=prof_fan_speed)
+                elif prof_fan_mode != "manual" and prof_fan_speed:
+                    await db.set_fan_config(miner_id, fan_mode=prof_fan_mode, fan_max_override=prof_fan_speed)
+                else:
+                    await db.set_fan_config(miner_id, fan_mode=prof_fan_mode)
+
             # Update Guardian DB config and active profile name
             await db.set_guardian_config(
                 miner_id,
                 max_freq_mhz=freq,
                 max_power_w=max_power,
-                fan_max_override=fan_max,
+                fan_max_override=prof_fan_speed if (prof_fan_mode != "manual") else None,
             )
             await db.set_active_guardian_profile(miner_id, profile_name)
 
@@ -115,10 +126,13 @@ async def check_and_execute_schedules() -> None:
             if freq and volt:
                 await benchmark._apply_freq_and_volt(miner_id, freq, volt)
 
+            # Apply physical fan speed to driver
             miner = await db.get_miner(miner_id)
-            fan_mode = (miner.get("fan_mode") or "firmware").lower() if miner else "firmware"
-            if fan_max and fan_mode != "manual":
-                await benchmark._set_fan_speed(miner_id, fan_max)
+            current_fan_mode = (miner.get("fan_mode") or "firmware").lower() if miner else "firmware"
+            if prof_fan_mode == "manual" and prof_fan_speed:
+                await benchmark._set_fan_speed(miner_id, prof_fan_speed)
+            elif prof_fan_speed and current_fan_mode != "manual":
+                await benchmark._set_fan_speed(miner_id, prof_fan_speed)
 
             # Log governor decision event
             async with db.connect() as conn:

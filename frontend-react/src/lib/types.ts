@@ -769,6 +769,8 @@ export interface GuardianProfile {
   is_benchmark: number;
   max_freq_mhz: number | null;
   voltage_mv: number | null;
+  fan_mode?: 'manual' | 'minerwatch' | 'firmware' | null;
+  fan_speed_pct?: number | null;
   fan_max_pct: number | null;
   max_power_w: number | null;
   max_chip_temp_c: number | null;

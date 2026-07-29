@@ -977,6 +977,8 @@ export interface ProfileSavePayload {
   name: string;
   max_freq_mhz?: number | null;
   voltage_mv?: number | null;
+  fan_mode?: 'manual' | 'minerwatch' | 'firmware' | null;
+  fan_speed_pct?: number | null;
   fan_max_pct?: number | null;
   max_power_w?: number | null;
 }

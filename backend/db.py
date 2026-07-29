@@ -437,6 +437,8 @@ CREATE TABLE IF NOT EXISTS guardian_profiles (
     is_benchmark        INTEGER NOT NULL DEFAULT 0,
     max_freq_mhz        INTEGER,
     voltage_mv          INTEGER,
+    fan_mode            TEXT,
+    fan_speed_pct       INTEGER,
     fan_max_pct         INTEGER,
     max_power_w         REAL,
     max_chip_temp_c     REAL,
@@ -578,6 +580,9 @@ def _init_db_sync() -> None:
             "ALTER TABLE block_finds ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0",
             # Hardware error percentage column in metrics table.
             "ALTER TABLE metrics ADD COLUMN error_pct REAL",
+            # Guardian profile fan mode and manual fan speed overrides.
+            "ALTER TABLE guardian_profiles ADD COLUMN fan_mode TEXT",
+            "ALTER TABLE guardian_profiles ADD COLUMN fan_speed_pct INTEGER",
             # Per-miner Guardian max power limit override.
             "ALTER TABLE miners ADD COLUMN guardian_max_power_w REAL",
         ]:
@@ -2942,14 +2947,16 @@ async def save_guardian_profile(miner_id: int, profile: dict) -> int:
                 """
                 UPDATE guardian_profiles SET
                     name = ?, max_freq_mhz = ?, voltage_mv = ?,
-                    fan_max_pct = ?, max_power_w = ?, max_chip_temp_c = ?,
-                    max_vr_temp_c = ?
+                    fan_mode = ?, fan_speed_pct = ?, fan_max_pct = ?,
+                    max_power_w = ?, max_chip_temp_c = ?, max_vr_temp_c = ?
                 WHERE id = ? AND (miner_id = ? OR miner_id IS NULL)
                 """,
                 (
                     profile["name"],
                     profile.get("max_freq_mhz"),
                     profile.get("voltage_mv"),
+                    profile.get("fan_mode"),
+                    profile.get("fan_speed_pct"),
                     profile.get("fan_max_pct"),
                     profile.get("max_power_w"),
                     profile.get("max_chip_temp_c"),
@@ -2964,14 +2971,17 @@ async def save_guardian_profile(miner_id: int, profile: dict) -> int:
                 """
                 INSERT INTO guardian_profiles (
                     miner_id, name, is_benchmark, max_freq_mhz, voltage_mv,
-                    fan_max_pct, max_power_w, max_chip_temp_c, max_vr_temp_c, created_at
-                ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+                    fan_mode, fan_speed_pct, fan_max_pct, max_power_w,
+                    max_chip_temp_c, max_vr_temp_c, created_at
+                ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     miner_id,
                     profile["name"],
                     profile.get("max_freq_mhz"),
                     profile.get("voltage_mv"),
+                    profile.get("fan_mode"),
+                    profile.get("fan_speed_pct"),
                     profile.get("fan_max_pct"),
                     profile.get("max_power_w"),
                     profile.get("max_chip_temp_c"),
@@ -2980,6 +2990,15 @@ async def save_guardian_profile(miner_id: int, profile: dict) -> int:
                 ),
             )
             return cursor.lastrowid or 0
+
+
+async def get_guardian_profile_by_id(miner_id: int, profile_id: int) -> dict | None:
+    """Fetch a single profile by ID (including synthetic benchmark profiles)."""
+    profiles = await get_guardian_profiles(miner_id)
+    for p in profiles:
+        if p["id"] == profile_id:
+            return p
+    return None
 
 
 async def delete_guardian_profile(miner_id: int, profile_id: int) -> None:

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.34.0] — 2026-07-29
+
+### Added
+
+- **Manual Fan Speed in Guardian Profiles.** Added support for saving explicit fan control modes (`manual`, `minerwatch`, `firmware`) and target manual fan speeds (`fan_speed_pct`) inside Guardian Profiles. When switching to a profile (manually or via time-of-day schedules), the miner automatically configures the desired fan mode and speed (e.g. running a 45% quiet fan profile during daytime hours).
+
 ## [1.33.2] — 2026-07-29
 
 ### Fixed
