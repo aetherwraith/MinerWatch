@@ -132,6 +132,57 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     }));
   }, [samples]);
 
+  // Live leading candidates computed from stable samples during run or completed
+  const liveStableSamples = useMemo(() => samples.filter((s) => s.stable), [samples]);
+
+  const liveBestEff = useMemo(() => {
+    if (!liveStableSamples.length) return null;
+    return liveStableSamples.reduce((best, cur) => {
+      if (!cur.efficiency_j_th) return best;
+      if (!best || !best.efficiency_j_th || cur.efficiency_j_th < best.efficiency_j_th) return cur;
+      return best;
+    }, null as (typeof samples)[0] | null);
+  }, [liveStableSamples]);
+
+  const liveBestHash = useMemo(() => {
+    if (!liveStableSamples.length) return null;
+    return liveStableSamples.reduce((best, cur) => {
+      if (!cur.hashrate_ths) return best;
+      if (!best || !best.hashrate_ths || cur.hashrate_ths > best.hashrate_ths) return cur;
+      return best;
+    }, null as (typeof samples)[0] | null);
+  }, [liveStableSamples]);
+
+  const liveBestQuiet = useMemo(() => {
+    const isAutoFan = latestRun?.fan_mode ? ['firmware', 'minerwatch'].includes(latestRun.fan_mode) : benchFanMode !== 'pin';
+    if (!isAutoFan || !liveStableSamples.length) return null;
+    const quietLimit = latestRun?.quiet_fan_max_pct ?? quietFanMaxPct ?? 65;
+    const quietCands = liveStableSamples.filter(
+      (s) => s.fan_pct != null && s.fan_pct <= quietLimit && s.hashrate_ths != null
+    );
+    if (!quietCands.length) return null;
+    return quietCands.reduce((best, cur) => {
+      if (!best || (cur.hashrate_ths ?? 0) > (best.hashrate_ths ?? 0)) return cur;
+      return best;
+    }, null as (typeof samples)[0] | null);
+  }, [liveStableSamples, latestRun?.fan_mode, latestRun?.quiet_fan_max_pct, benchFanMode, quietFanMaxPct]);
+
+  // Current parameters under active test
+  const currentTestingSample = samples.length > 0 ? samples[samples.length - 1] : null;
+
+  // Display values for candidate cards
+  const displayEffFreq = latestRun?.best_eff_freq ?? liveBestEff?.freq_mhz ?? null;
+  const displayEffVolt = latestRun?.best_eff_volt ?? liveBestEff?.voltage_mv ?? null;
+  const displayEffJTh = latestRun?.best_eff_j_th ?? liveBestEff?.efficiency_j_th ?? null;
+
+  const displayHashFreq = latestRun?.best_hash_freq ?? liveBestHash?.freq_mhz ?? null;
+  const displayHashVolt = latestRun?.best_hash_volt ?? liveBestHash?.voltage_mv ?? null;
+  const displayHashThs = latestRun?.best_hash_ths ?? liveBestHash?.hashrate_ths ?? null;
+
+  const displayQuietFreq = latestRun?.best_quiet_freq ?? liveBestQuiet?.freq_mhz ?? null;
+  const displayQuietVolt = latestRun?.best_quiet_volt ?? liveBestQuiet?.voltage_mv ?? null;
+  const displayQuietFan = latestRun?.best_quiet_fan_pct ?? liveBestQuiet?.fan_pct ?? null;
+
   const handleAcknowledge = (withProfiles: boolean) => {
     if (!latestRun || !withProfiles) {
       ackMutation.mutate([]);
@@ -395,18 +446,42 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               />
             </div>
 
+            {/* Current Operating Point Under Active Test */}
+            {currentTestingSample && (
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/15 p-3 text-xs space-y-1.5">
+                <div className="flex items-center justify-between font-mono font-semibold text-emerald-300">
+                  <span className="flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    Active Test Point (Step {currentStep} of {totalSteps}):
+                  </span>
+                  <Badge className="bg-emerald-500/25 text-emerald-200 border-emerald-500/40 text-[10px]">
+                    Live Sampling
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px] text-foreground pt-0.5">
+                  <div>Frequency: <span className="font-bold text-emerald-400">{currentTestingSample.freq_mhz} MHz</span></div>
+                  <div>Voltage: <span className="font-bold text-cyan-400">{currentTestingSample.voltage_mv} mV</span></div>
+                  <div>Hashrate: <span className="font-bold text-foreground">{currentTestingSample.hashrate_ths != null ? `${currentTestingSample.hashrate_ths.toFixed(2)} TH/s` : 'Settling...'}</span></div>
+                  <div>Fan Speed: <span className="font-bold text-indigo-300">{currentTestingSample.fan_pct != null ? `${currentTestingSample.fan_pct.toFixed(0)}%` : '—'}</span></div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono text-muted-foreground pt-1">
-              <div>Range: <span className="text-foreground">{minFreq}-{maxFreq} MHz</span></div>
-              <div>Volt: <span className="text-foreground">{minVolt}-{maxVolt} mV</span></div>
-              <div>Dwell: <span className="text-foreground">{dwellTime}s</span></div>
-              <div>Fan Mode: <span className="text-foreground capitalize">{benchFanMode}</span></div>
+              <div>Range: <span className="text-foreground">{latestRun?.min_freq_mhz ?? minFreq}-{latestRun?.max_freq_mhz ?? maxFreq} MHz</span></div>
+              <div>Volt: <span className="text-foreground">{latestRun?.min_voltage_mv ?? minVolt}-{latestRun?.max_voltage_mv ?? maxVolt} mV</span></div>
+              <div>Dwell: <span className="text-foreground">{latestRun?.dwell_time_s ?? dwellTime}s</span></div>
+              <div>Fan Mode: <span className="text-foreground capitalize">{latestRun?.fan_mode ?? benchFanMode}</span></div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Optimal Candidate Profile Cards (When Completed or Samples Available) */}
-      {latestRun && (latestRun.status === 'completed' || latestRun.best_eff_freq) && (
+      {/* Optimal Candidate Profile Leaderboard Cards (Shown when run or leading candidates exist) */}
+      {latestRun && (running || samples.length > 0 || latestRun.best_eff_freq) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Max Efficiency Profile Card */}
           <Card className="border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 to-transparent">
@@ -417,7 +492,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <CardTitle className="text-base font-semibold">Max Efficiency Profile</CardTitle>
                 </div>
                 <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]">
-                  Sweet-Spot
+                  {running ? 'Leading Candidate' : 'Sweet-Spot'}
                 </Badge>
               </div>
               <CardDescription>Lowest energy usage per Terahash (J/TH)</CardDescription>
@@ -427,13 +502,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
                   <div className="text-sm font-bold text-foreground mt-0.5">
-                    {latestRun.best_eff_freq ?? '—'} MHz / {latestRun.best_eff_volt ?? '—'} mV
+                    {displayEffFreq ? `${displayEffFreq} MHz / ${displayEffVolt} mV` : 'Evaluating...'}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Efficiency</span>
                   <div className="text-sm font-bold text-emerald-400 mt-0.5">
-                    {latestRun.best_eff_j_th ? `${latestRun.best_eff_j_th.toFixed(1)} J/TH` : '—'}
+                    {displayEffJTh ? `${displayEffJTh.toFixed(1)} J/TH` : 'Evaluating...'}
                   </div>
                 </div>
               </div>
@@ -441,7 +516,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 variant="default"
                 size="sm"
                 onClick={() => applyMutation.mutate('max_efficiency')}
-                disabled={applyMutation.isPending || !latestRun.best_eff_freq}
+                disabled={applyMutation.isPending || !displayEffFreq}
                 className="w-full h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -459,7 +534,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <CardTitle className="text-base font-semibold">Max Hashrate Profile</CardTitle>
                 </div>
                 <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 text-[10px]">
-                  Peak Performance
+                  {running ? 'Leading Candidate' : 'Peak Performance'}
                 </Badge>
               </div>
               <CardDescription>Highest mining throughput (TH/s)</CardDescription>
@@ -469,13 +544,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
                   <div className="text-sm font-bold text-foreground mt-0.5">
-                    {latestRun.best_hash_freq ?? '—'} MHz / {latestRun.best_hash_volt ?? '—'} mV
+                    {displayHashFreq ? `${displayHashFreq} MHz / ${displayHashVolt} mV` : 'Evaluating...'}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Peak Hashrate</span>
                   <div className="text-sm font-bold text-cyan-400 mt-0.5">
-                    {latestRun.best_hash_ths ? `${latestRun.best_hash_ths.toFixed(2)} TH/s` : '—'}
+                    {displayHashThs ? `${displayHashThs.toFixed(2)} TH/s` : 'Evaluating...'}
                   </div>
                 </div>
               </div>
@@ -483,7 +558,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 variant="default"
                 size="sm"
                 onClick={() => applyMutation.mutate('max_hashrate')}
-                disabled={applyMutation.isPending || !latestRun.best_hash_freq}
+                disabled={applyMutation.isPending || !displayHashFreq}
                 className="w-full h-9 bg-cyan-600 hover:bg-cyan-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -501,23 +576,23 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <CardTitle className="text-base font-semibold">Best Quiet Profile</CardTitle>
                 </div>
                 <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px]">
-                  Acoustic Quiet
+                  {running ? 'Leading Candidate' : 'Acoustic Quiet'}
                 </Badge>
               </div>
-              <CardDescription>Max performance (TH/s) where Fan ≤ {latestRun.quiet_fan_max_pct ?? 65}%</CardDescription>
+              <CardDescription>Max performance (TH/s) where Fan ≤ {latestRun.quiet_fan_max_pct ?? quietFanMaxPct ?? 65}%</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
                   <span className="text-muted-foreground text-[10px]">Freq / Voltage</span>
                   <div className="text-sm font-bold text-foreground mt-0.5">
-                    {latestRun.best_quiet_freq ? `${latestRun.best_quiet_freq} MHz / ${latestRun.best_quiet_volt} mV` : '—'}
+                    {displayQuietFreq ? `${displayQuietFreq} MHz / ${displayQuietVolt} mV` : 'Evaluating...'}
                   </div>
                 </div>
                 <div className="p-2.5 rounded-lg border border-border/50 bg-muted/20 font-mono">
-                  <span className="text-muted-foreground text-[10px]">Quiet Efficiency</span>
+                  <span className="text-muted-foreground text-[10px]">Quiet Hashrate / Fan</span>
                   <div className="text-sm font-bold text-indigo-400 mt-0.5">
-                    {latestRun.best_quiet_j_th ? `${latestRun.best_quiet_j_th.toFixed(1)} J/TH` : '—'}
+                    {displayQuietFreq ? `${liveBestQuiet?.hashrate_ths?.toFixed(2) ?? '—'} TH/s @ ${displayQuietFan?.toFixed(0) ?? '—'}%` : 'Evaluating...'}
                   </div>
                 </div>
               </div>
@@ -525,7 +600,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 variant="default"
                 size="sm"
                 onClick={() => applyMutation.mutate('quiet')}
-                disabled={applyMutation.isPending || !latestRun.best_quiet_freq}
+                disabled={applyMutation.isPending || !displayQuietFreq}
                 className="w-full h-9 bg-indigo-600 hover:bg-indigo-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />

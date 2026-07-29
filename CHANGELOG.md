@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.4] — 2026-07-29
+
+### Added
+
+- **Live Leading Candidates & Active Test Point Display.** Updated `BenchmarkTab` to display real-time calculated leading candidates (**Max Efficiency**, **Max Hashrate**, and **Best Quiet**) as samples settle during an active sweep.
+- **Active Step Parameters Banner.** Added a live sampling badge to the main progress card displaying the active operating frequency (MHz), core voltage (mV), live settled hashrate (TH/s), and settled fan speed (%) under test for the current step.
+
 ## [1.36.3] — 2026-07-29
 
 ### Fixed
