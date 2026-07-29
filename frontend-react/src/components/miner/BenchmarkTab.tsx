@@ -828,6 +828,26 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 </div>
               )}
             </div>
+
+            {/* Start Sweep Action Button inside Parameters Card */}
+            <div className="pt-4 border-t border-border/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">
+                {isUnacknowledged
+                  ? 'Please acknowledge completed benchmark results above before starting a new sweep.'
+                  : `Configured sweep: ${minFreq}–${maxFreq} MHz in ${freqStep} MHz steps, ${minVolt}–${maxVolt} mV in ${voltStep} mV steps.`}
+              </span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleStart}
+                disabled={startMutation.isPending || isLoading || isUnacknowledged}
+                title={isUnacknowledged ? 'Please acknowledge completed benchmark results above before starting a new benchmark.' : undefined}
+                className="h-9 px-5 gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs disabled:opacity-50 shrink-0 self-end sm:self-auto"
+              >
+                <Play className="h-4 w-4 fill-current" />
+                Start Benchmark Sweep
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.8] — 2026-07-29
+
+### Added
+
+- **Parameters Card Start Sweep Action Button.** Added a prominent `Start Benchmark Sweep` button and configured matrix parameter summary footer directly inside the `Sweep Parameters` card in `BenchmarkTab.tsx`.
+
 ## [1.36.7] — 2026-07-29
 
 ### Fixed
