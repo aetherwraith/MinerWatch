@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.13] — 2026-07-29
+
+### Fixed
+
+- **Benchmark Status Endpoint AttributeError Fix.** Fixed a server-side 500 error in `/api/miners/{miner_id}/benchmark/status` caused by calling an un-bound method `guardian.get_target_max_temps(miner)`. Replaced with standalone helper `_get_target_max_temps(miner)` in `backend/main.py`, restoring API status responses and enabling benchmark progress streaming.
+
 ## [1.37.12] — 2026-07-29
 
 ### Fixed

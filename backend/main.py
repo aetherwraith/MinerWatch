@@ -2060,6 +2060,23 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
     return {"ok": True, "max_freq_mhz": max_freq}
 
 
+def _get_target_max_temps(miner: dict) -> tuple[float, float]:
+    from .config import DEFAULT_VR_TEMP_HIGH_C, DEFAULT_CHIP_TEMP_HIGH_C
+    max_vr_temp = miner.get("guardian_max_vr_temp_c")
+    if not max_vr_temp and str(miner.get("guardian_temp_source") or "").lower() == "vr":
+        max_vr_temp = miner.get("guardian_max_temp_c")
+    vr_high = float(max_vr_temp) if max_vr_temp else DEFAULT_VR_TEMP_HIGH_C
+
+    max_chip_temp = miner.get("guardian_max_chip_temp_c")
+    if not max_chip_temp and str(miner.get("guardian_temp_source") or "").lower() == "chip":
+        max_chip_temp = miner.get("guardian_max_temp_c")
+    if not max_chip_temp and miner.get("auto_target_c") is not None:
+        max_chip_temp = miner.get("auto_target_c")
+    chip_high = float(max_chip_temp) if max_chip_temp else DEFAULT_CHIP_TEMP_HIGH_C
+
+    return chip_high, vr_high
+
+
 # ---------- API: Guardian Automated Benchmarker ----------
 
 @app.get("/api/miners/{miner_id}/benchmark/status")
@@ -2072,7 +2089,7 @@ async def api_benchmark_status(miner_id: int) -> dict:
     latest_run = await db.get_latest_miner_benchmark(miner_id)
 
     curr_freq = _miner_current_freq(miner_id) or 500
-    target_chip, target_vr = guardian.get_target_max_temps(miner)
+    target_chip, target_vr = _get_target_max_temps(miner)
 
     defaults = {
         "min_freq_mhz": max(100, curr_freq - 100),
