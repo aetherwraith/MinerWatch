@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.33.2] — 2026-07-29
+
+### Fixed
+
+- **Strict Manual Fan Mode Immunity.** Enforced strict checks (`fan_mode != 'manual'`) across Guardian tuning probes, profile switch routines, evaluation handlers, and benchmark sweep defaults. When fan mode is set to `manual`, no system process will alter the user's manual fan speed except the 75°C emergency overheat watchdog.
+
 ## [1.33.1] — 2026-07-29
 
 ### Changed

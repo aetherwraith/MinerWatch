@@ -439,7 +439,8 @@ class GuardianController:
             else:
                 cfg = get_config()
                 drv = driver_for_record({**m, "timeout": cfg.polling.request_timeout})
-                if drv.can_set_fan:
+                fan_mode = (m.get("fan_mode") or "firmware").lower()
+                if drv.can_set_fan and fan_mode != "manual":
                     fan_max = int(m.get("fan_max_override") or 100)
                     try:
                         await drv.set_fan_speed(fan_max)
@@ -687,7 +688,8 @@ class GuardianController:
         # directly pin the fan speed on the device to max (100% or override) so thermal baseline is constant.
         # Once Guardian settles (is_tuning is False), release fan control back to auto-fan.
         drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
-        if drv.can_set_fan:
+        fan_mode = (miner.get("fan_mode") or "firmware").lower()
+        if drv.can_set_fan and fan_mode != "manual":
             fan_max = int(miner.get("fan_max_override") or 100)
             if state.is_tuning:
                 state.was_tuning = True

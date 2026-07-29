@@ -115,7 +115,9 @@ async def check_and_execute_schedules() -> None:
             if freq and volt:
                 await benchmark._apply_freq_and_volt(miner_id, freq, volt)
 
-            if fan_max:
+            miner = await db.get_miner(miner_id)
+            fan_mode = (miner.get("fan_mode") or "firmware").lower() if miner else "firmware"
+            if fan_max and fan_mode != "manual":
                 await benchmark._set_fan_speed(miner_id, fan_max)
 
             # Log governor decision event

@@ -688,8 +688,40 @@ def test_inherits_autofan_targets_by_default():
         gcfg.temp_band.return_value = (70.0, 60.0)
         with patch("backend.db.get_recent_metrics_average", AsyncMock(return_value={})), \
              patch("backend.db.get_governor_decisions", AsyncMock(return_value=[])), \
-             patch("backend.guardian.driver_for_record") as mock_drv:
+             patch("backend.guardian.driver_for_record"):
             await ctrl._govern_one(miner, sample, gcfg, Mock())
+
+    asyncio.run(run())
+
+
+def test_guardian_respects_manual_fan_mode():
+    import asyncio
+    from unittest.mock import AsyncMock, Mock, patch
+    from backend.guardian import GuardianController
+    from backend.miners.base import MinerSample
+
+    async def run():
+        ctrl = GuardianController()
+        miner = {
+            "id": 102,
+            "name": "test_manual_fan",
+            "family": "bitaxe",
+            "guardian_enabled": 1,
+            "fan_mode": "manual",
+            "fan_min_override": 70,
+            "fan_max_override": 70,
+        }
+        sample = MinerSample(
+            family="bitaxe", host="10.0.0.1", online=True, frequency_mhz=500, temp_chip_c=55.0, temp_vr_c=55.0
+        )
+        mock_drv = Mock()
+        mock_drv.can_set_fan = True
+        mock_drv.set_fan_speed = AsyncMock()
+
+        with patch("backend.guardian.driver_for_record", return_value=mock_drv):
+            await ctrl.eval_miner_now(102)
+            # When fan_mode == "manual", Guardian must NOT call set_fan_speed!
+            mock_drv.set_fan_speed.assert_not_called()
 
     asyncio.run(run())
 

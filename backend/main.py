@@ -2218,7 +2218,8 @@ async def api_apply_guardian_profile(miner_id: int, profile_id: int) -> dict:
         except Exception as e:
             logger.warning("Failed applying profile freq/volt: %s", e)
 
-    if fan_max:
+    fan_mode = (miner.get("fan_mode") or "firmware").lower()
+    if fan_max and fan_mode != "manual":
         try:
             await benchmark._set_fan_speed(miner_id, fan_max)
         except Exception as e:
