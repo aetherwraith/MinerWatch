@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.11] — 2026-07-29
+
+### Fixed
+
+- **Chronological System Log Stream Ordering & Auto-Scroll.** Fixed a bug in `backend/log_buffer.py` (`RingBufferHandler.get_logs()`) where logs were returned in reverse-chronological order (newest at top, oldest at bottom), causing terminal auto-scroll to jump to the oldest records at the bottom. Re-reversed log slices so logs are delivered in standard chronological order (oldest at top, newest at bottom), restoring seamless terminal auto-scrolling to live incoming logs.
+
 ## [1.37.10] — 2026-07-29
 
 ### Added

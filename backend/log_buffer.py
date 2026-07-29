@@ -77,12 +77,9 @@ class RingBufferHandler(logging.Handler):
         search_lower = search.lower() if search else None
         level_upper = level.upper() if level else None
 
-        # Snapshot buffer
+        # Snapshot buffer and scan from newest to oldest to collect recent matching logs
         items = list(self.buffer)
-        # Reverse to get newest first
-        items.reverse()
-
-        for item in items:
+        for item in reversed(items):
             if level_upper and item.level != level_upper:
                 continue
             if search_lower and (search_lower not in item.message.lower() and search_lower not in item.logger.lower()):
@@ -91,6 +88,8 @@ class RingBufferHandler(logging.Handler):
             if len(results) >= limit:
                 break
 
+        # Reverse results so logs are returned in chronological order (oldest first, newest last)
+        results.reverse()
         return results
 
     def clear(self) -> None:
