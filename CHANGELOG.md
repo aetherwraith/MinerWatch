@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.3] — 2026-07-29
+
+### Fixed
+
+- **Telemetry Live Voltage Auto-Population.** Updated Profile Save defaults to fall back to `data.live_sample.voltage_mv` directly from live miner telemetry when Guardian status is inactive or not yet evaluated. Core voltage is now reliably pre-populated in the form regardless of Guardian status.
+
 ## [1.35.2] — 2026-07-29
 
 ### Changed

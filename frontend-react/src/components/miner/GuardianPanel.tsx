@@ -585,8 +585,8 @@ export function GuardianPanel({ data }: Props) {
         {/* Guardian Profiles & Scheduled Profile Switcher (Placed above history graphs and logs) */}
         <GuardianProfilesAndSchedules
           minerId={miner.id}
-          currentFreq={currentFreq}
-          minerVolt={s?.live?.voltage_mv}
+          currentFreq={currentFreq ?? data.live_sample?.frequency_mhz ?? null}
+          minerVolt={s?.live?.voltage_mv ?? data.live_sample?.voltage_mv ?? null}
           activeProfile={s?.active_profile}
           minerFanMode={miner.fan_mode}
           minerFanSpeed={miner.fan_min_override ?? miner.fan_max_override}
@@ -726,7 +726,7 @@ function GuardianProfilesAndSchedules({
     if (currentFreq && (profFreq === 500 || profFreq === '')) {
       setProfFreq(currentFreq);
     }
-    if (minerVolt && profVolt === '') {
+    if (minerVolt != null) {
       setProfVolt(minerVolt);
     }
     if (minerFanMode && profFanMode === 'manual') {
