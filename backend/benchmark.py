@@ -305,10 +305,17 @@ async def _run_benchmark_sweep(
                             micro_candidates.add((f, v))
 
             if micro_candidates:
-                logger.info("Starting microtuning sweep with %d fine candidate points on miner #%d", len(micro_candidates), miner_id)
-                for f, v in sorted(list(micro_candidates)):
+                total_micro = len(micro_candidates)
+                total_all_steps = len(combinations) + total_micro
+                await db.update_miner_benchmark(benchmark_id, total_steps=total_all_steps)
+                logger.info("Starting microtuning sweep with %d fine candidate points on miner #%d (total steps=%d)", total_micro, miner_id, total_all_steps)
+
+                for m_idx, (f, v) in enumerate(sorted(list(micro_candidates))):
                     if _abort_flags.get(miner_id):
                         break
+
+                    step_num = len(combinations) + m_idx + 1
+                    await db.update_miner_benchmark(benchmark_id, current_step=step_num)
 
                     try:
                         await _apply_freq_and_volt(miner_id, f, v)

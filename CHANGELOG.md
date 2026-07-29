@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.9] — 2026-07-29
+
+### Added
+
+- **Benchmark ETA Display.** Computed dynamic remaining time (`ETA: ~Xm Ys remaining`) and rendered inside the live benchmark progress badge in `BenchmarkTab.tsx`.
+
+### Fixed
+
+- **Guardian Active Benchmark Bypass.** Added explicit `is_benchmark_running(miner_id)` checks in `backend/guardian.py` tick evaluations to strictly prevent Guardian governor interventions during benchmark sweeps.
+- **Microtuning Progress Tracking.** Updated `total_steps` and step increment reporting during microtuning in `backend/benchmark.py` so fine microtuning candidate points are tracked step-by-step in real time.
+
 ## [1.36.8] — 2026-07-29
 
 ### Added

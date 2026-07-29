@@ -430,6 +430,10 @@ class GuardianController:
 
     async def eval_miner_now(self, miner_id: int) -> None:
         """Immediately trigger an evaluation tick for one miner upon enable/config change."""
+        from . import benchmark
+        if benchmark.is_benchmark_running(int(miner_id)):
+            log.info("guardian: miner #%d is benchmarking — skipping immediate evaluation", int(miner_id))
+            return
         from .poller import poller as _poller
         m = await db.get_miner(int(miner_id))
         if m and _coerce_bool(m.get("guardian_enabled")):
@@ -532,8 +536,12 @@ class GuardianController:
         miners = await db.list_miners(only_enabled=True)
         seen: set[int] = set()
 
+        from . import benchmark
         for miner in miners:
             miner_id = int(miner["id"])
+            if benchmark.is_benchmark_running(miner_id):
+                log.info("guardian: miner #%d active benchmark in progress — skipping Guardian tick", miner_id)
+                continue
             if not _coerce_bool(miner.get("guardian_enabled")):
                 continue
             family = (miner.get("family") or "").lower()

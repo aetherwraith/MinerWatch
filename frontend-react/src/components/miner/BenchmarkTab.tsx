@@ -118,6 +118,18 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const currentStep = latestRun?.current_step || 0;
   const progressPct = Math.min(100, Math.round((currentStep / totalSteps) * 100));
 
+  const dwellSec = latestRun?.dwell_time_s ?? dwellTime ?? 30;
+  const remainingSteps = Math.max(0, totalSteps - currentStep);
+  const etaSec = remainingSteps * dwellSec;
+  const etaText = useMemo(() => {
+    if (!running) return null;
+    if (etaSec <= 0) return 'Finishing...';
+    const m = Math.floor(etaSec / 60);
+    const s = etaSec % 60;
+    if (m === 0) return `~${s}s remaining`;
+    return `~${m}m ${s > 0 ? `${s}s ` : ''}remaining`;
+  }, [running, etaSec]);
+
   // Prepared chart data
   const chartData = useMemo(() => {
     return samples.map((s, idx) => ({
@@ -455,8 +467,14 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               <div className="flex items-center gap-2 text-emerald-300 font-semibold text-sm">
                 <RefreshCw className="h-4 w-4 animate-spin text-emerald-400" />
                 Benchmark Sweep in Progress...
-                <Badge variant="outline" className="font-mono text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
-                  Step {currentStep} of {totalSteps} ({progressPct}%)
+                <Badge variant="outline" className="font-mono text-xs bg-emerald-500/20 text-emerald-300 border-emerald-500/40 gap-1.5">
+                  <span>Step {currentStep} of {totalSteps} ({progressPct}%)</span>
+                  {etaText && (
+                    <>
+                      <span className="text-emerald-400/60">•</span>
+                      <span className="text-emerald-200">ETA: {etaText}</span>
+                    </>
+                  )}
                 </Badge>
               </div>
               <Button
