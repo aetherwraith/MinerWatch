@@ -920,7 +920,7 @@ export function useStartBenchmark(minerId: number) {
     mutationFn: (payload: BenchmarkStartPayload) =>
       api<{ ok: boolean; benchmark_id: number }>(`/api/miners/${minerId}/benchmark/start`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['miner-benchmark-status', minerId] });
@@ -949,10 +949,11 @@ export function useApplyBenchmarkProfile(minerId: number) {
         `/api/miners/${minerId}/benchmark/apply`,
         {
           method: 'POST',
-          body: JSON.stringify({ profile }),
+          body: { profile },
         }
       ),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['miner-benchmark-status', minerId] });
       qc.invalidateQueries({ queryKey: ['miner-guardian-status', minerId] });
       qc.invalidateQueries({ queryKey: ['miners'] });
     },
@@ -1013,7 +1014,7 @@ export function useSaveGuardianProfile(minerId: number) {
     mutationFn: (payload: ProfileSavePayload) =>
       api<{ ok: boolean; profile_id: number }>(`/api/miners/${minerId}/guardian/profiles`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['guardian-profiles', minerId] });
@@ -1070,7 +1071,7 @@ export function useSaveGuardianSchedule(minerId: number) {
     mutationFn: (payload: ScheduleSavePayload) =>
       api<{ ok: boolean; schedule_id: number }>(`/api/miners/${minerId}/guardian/schedules`, {
         method: 'POST',
-        body: JSON.stringify(payload),
+        body: payload,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['guardian-schedules', minerId] });

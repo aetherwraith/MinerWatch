@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.5] — 2026-07-29
+
+### Fixed
+
+- **Double JSON-Stringification Request Body Fix.** Fixed a critical bug in API mutation hooks (`useSaveGuardianProfile`, `useSaveGuardianSchedule`, `useStartBenchmark`) where JSON bodies were double-encoded (`JSON.stringify(JSON.stringify(payload))`), causing backend endpoints to fail with a 422 Unprocessable Entity error when attempting to save profiles.
+
 ## [1.35.4] — 2026-07-29
 
 ### Fixed

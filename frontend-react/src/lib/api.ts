@@ -58,7 +58,7 @@ export async function api<T = unknown>(
     signal: opts.signal,
   };
   if (opts.body !== undefined) {
-    init.body = JSON.stringify(opts.body);
+    init.body = typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body);
   }
   const resp = await fetch(path, init);
   if (!resp.ok) {
