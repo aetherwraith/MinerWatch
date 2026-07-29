@@ -138,7 +138,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     return `~${m}m ${s > 0 ? `${s}s ` : ''}remaining`;
   }, [running, etaSec]);
 
-  // Prepared chart data
+  // Prepared chart data (includes all Phase 1 coarse and Phase 2 microtuning samples)
   const chartData = useMemo(() => {
     return samples.map((s, idx) => ({
       step: idx + 1,
@@ -149,8 +149,9 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       hashrate: s.hashrate_ths ? Number(s.hashrate_ths.toFixed(2)) : null,
       chipTemp: s.chip_temp_c ? Number(s.chip_temp_c.toFixed(1)) : null,
       stable: !!s.stable,
+      isMicro: idx >= coarseTotal,
     }));
-  }, [samples]);
+  }, [samples, coarseTotal]);
 
   // Live leading candidates computed from stable samples during run or completed
   const liveStableSamples = useMemo(() => samples.filter((s) => s.stable), [samples]);
@@ -206,12 +207,19 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     return list;
   }, [latestRun, minFreq, maxFreq, freqStep, minVolt, maxVolt, voltStep]);
 
-  // Current parameters under active test (works from Step 1 onwards!)
+  // Current parameters under active test (works from Step 1 onwards across both phases!)
   const activeTestingPoint = useMemo(() => {
+    if (isMicroPhase) {
+      const latestSample = samples[samples.length - 1];
+      return {
+        freq_mhz: latestSample?.freq_mhz ?? minFreq,
+        voltage_mv: latestSample?.voltage_mv ?? minVolt,
+        hashrate_ths: latestSample?.hashrate_ths ?? null,
+        fan_pct: latestSample?.fan_pct ?? null,
+      };
+    }
     const activeStepIdx = Math.max(0, (latestRun?.current_step || 1) - 1);
     const plan = plannedCombinations[activeStepIdx] ?? plannedCombinations[0] ?? { freq_mhz: minFreq, voltage_mv: minVolt };
-    
-    // Check if we have completed a sample for this step yet
     const sampleForStep = samples[activeStepIdx] ?? samples[samples.length - 1] ?? null;
 
     return {
@@ -220,7 +228,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       hashrate_ths: sampleForStep?.hashrate_ths ?? null,
       fan_pct: sampleForStep?.fan_pct ?? null,
     };
-  }, [latestRun?.current_step, plannedCombinations, samples, minFreq, minVolt]);
+  }, [isMicroPhase, latestRun, plannedCombinations, minFreq, minVolt, samples]);
 
   // Display values for candidate cards
   const displayEffFreq = latestRun?.best_eff_freq ?? liveBestEff?.freq_mhz ?? null;
@@ -971,7 +979,16 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   <tbody className="divide-y divide-border/40">
                     {samples.map((s, i) => (
                       <tr key={s.id || i} className="hover:bg-muted/20">
-                        <td className="p-2 pl-3 font-mono text-muted-foreground">{i + 1}</td>
+                        <td className="p-2 pl-3 font-mono text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{i + 1}</span>
+                            {i >= coarseTotal && (
+                              <Badge variant="outline" className="text-[9px] bg-purple-500/15 text-purple-300 border-purple-500/30 px-1 py-0 font-sans">
+                                Micro
+                              </Badge>
+                            )}
+                          </span>
+                        </td>
                         <td className="p-2 font-mono font-medium">{s.freq_mhz} MHz</td>
                         <td className="p-2 font-mono text-muted-foreground">{s.voltage_mv} mV</td>
                         <td className="p-2 font-mono">{s.hashrate_ths ? `${s.hashrate_ths.toFixed(2)} TH/s` : '—'}</td>
