@@ -208,6 +208,7 @@ async def _run_benchmark_sweep(
 
             # Dwell time loop with safety net checking every second
             dwell_aborted = False
+            thermal_safety_trigger = False
             abort_reason = None
             dwell_samples: list[dict[str, Any]] = []
 
@@ -225,9 +226,10 @@ async def _run_benchmark_sweep(
                     chip_temp = latest.get("temp_chip_c")
                     vr_temp = latest.get("temp_vr_c")
 
-                    # 1. Guardian Thermal Safety Net Check!
+                    # 1. Guardian Thermal Safety Net Check (Emergency Halt)
                     if (chip_temp and chip_temp >= max_chip_temp + 2.0) or (vr_temp and vr_temp >= max_vr_temp + 2.0):
                         dwell_aborted = True
+                        thermal_safety_trigger = True
                         abort_reason = f"Thermal safety trigger (Chip: {chip_temp}°C, VR: {vr_temp}°C)"
                         logger.warning("Safety net triggered on benchmark #%d miner #%d: %s", benchmark_id, miner_id, abort_reason)
                         break
@@ -338,8 +340,8 @@ async def _run_benchmark_sweep(
             if is_stable and j_th is not None:
                 stable_samples.append(sample_record)
 
-            # If thermal safety net triggered, immediately step back to safe frequency
-            if dwell_aborted and abort_reason:
+            # If emergency thermal safety net triggered, immediately halt sweep
+            if thermal_safety_trigger:
                 logger.info("Halting benchmark #%d due to thermal safety net", benchmark_id)
                 await db.update_miner_benchmark(benchmark_id, status="aborted", current_step=idx + 1)
                 break
@@ -397,6 +399,7 @@ async def _run_benchmark_sweep(
 
                     m_dwell_samples: list[dict[str, Any]] = []
                     m_aborted = False
+                    m_thermal_trigger = False
                     m_abort_reason = None
 
                     for m_sec in range(1, dwell_time_s + 1):
@@ -411,6 +414,7 @@ async def _run_benchmark_sweep(
                             vr_t = latest.get("temp_vr_c")
                             if (chip_t and chip_t >= max_chip_temp + 2.0) or (vr_t and vr_t >= max_vr_temp + 2.0):
                                 m_aborted = True
+                                m_thermal_trigger = True
                                 m_abort_reason = f"Thermal safety trigger (Chip: {chip_t}°C, VR: {vr_t}°C)"
                                 break
 
@@ -510,6 +514,10 @@ async def _run_benchmark_sweep(
                     await db.add_benchmark_sample(benchmark_id, miner_id, m_sample)
                     if is_stable and j_th is not None:
                         stable_samples.append(m_sample)
+
+                    if m_thermal_trigger:
+                        logger.info("Halting microtuning on benchmark #%d due to thermal safety net", benchmark_id)
+                        break
 
         # Sweep finished — calculate best profiles
         best_eff = None

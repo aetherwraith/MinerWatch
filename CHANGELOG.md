@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.7] — 2026-07-29
+
+### Fixed
+
+- **Early Skip vs Emergency Safety Net Disambiguation.** Fixed a critical bug in `backend/benchmark.py` where early dwell skips erroneously triggered global sweep aborts. Differentiated single-point early skips (which log `stable = False` and advance to the next step) from emergency thermal safety triggers (which halt the sweep).
+
 ## [1.37.6] — 2026-07-29
 
 ### Added
