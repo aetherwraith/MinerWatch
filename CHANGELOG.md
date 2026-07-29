@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.7] — 2026-07-29
+
+### Fixed
+
+- **Disable Apply Profile Buttons During Active Benchmark.** Gated the "Apply" buttons in all three leaderboard candidate profile cards (`Max Efficiency`, `Max Hashrate`, and `Best Quiet`) to remain disabled while a benchmark is in progress (`running === true`).
+
 ## [1.36.6] — 2026-07-29
 
 ### Fixed

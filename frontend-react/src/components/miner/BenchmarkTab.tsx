@@ -548,7 +548,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 variant="default"
                 size="sm"
                 onClick={() => applyMutation.mutate('max_efficiency')}
-                disabled={applyMutation.isPending || !displayEffFreq}
+                disabled={running || applyMutation.isPending || !displayEffFreq}
                 className="w-full h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -590,7 +590,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 variant="default"
                 size="sm"
                 onClick={() => applyMutation.mutate('max_hashrate')}
-                disabled={applyMutation.isPending || !displayHashFreq}
+                disabled={running || applyMutation.isPending || !displayHashFreq}
                 className="w-full h-9 bg-cyan-600 hover:bg-cyan-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
@@ -632,7 +632,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 variant="default"
                 size="sm"
                 onClick={() => applyMutation.mutate('quiet')}
-                disabled={applyMutation.isPending || !displayQuietFreq}
+                disabled={running || applyMutation.isPending || !displayQuietFreq}
                 className="w-full h-9 bg-indigo-600 hover:bg-indigo-500 text-white font-medium gap-2 text-xs"
               >
                 <CheckCircle2 className="h-4 w-4" />
