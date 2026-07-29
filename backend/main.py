@@ -1809,7 +1809,11 @@ class BenchmarkStartPayload(BaseModel):
     voltage_step_mv: int = Field(ge=5, le=200, default=25)
     dwell_time_s: int = Field(ge=5, le=600, default=30)
     max_error_rate_pct: float = Field(ge=0.0, le=50.0, default=1.1)
+    fan_mode: str = Field(default="pin", pattern="^(pin|firmware|minerwatch)$")
     pin_fan_pct: int | None = Field(default=None, ge=10, le=100)
+    enable_microtuning: bool = False
+    micro_freq_step_mhz: int = Field(default=5, ge=1, le=50)
+    micro_volt_step_mv: int = Field(default=10, ge=1, le=50)
 
 
 class BenchmarkApplyPayload(BaseModel):

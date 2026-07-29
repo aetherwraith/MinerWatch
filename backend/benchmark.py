@@ -165,9 +165,17 @@ async def _run_benchmark_sweep(
         except Exception as e:
             logger.warning("Failed to temporarily disable Guardian on miner #%d: %s", miner_id, e)
 
-    # If pin_fan_pct is specified, temporarily pin miner fan.
-    # Otherwise, ensure fan control is reset to the Control/Tuning page settings.
-    if pin_fan_pct is not None:
+    # Configure fan mode for benchmark run (fixed pin, firmware auto, or minerwatch auto)
+    bench_fan_mode = (config.get("fan_mode") or "pin").lower()
+    if bench_fan_mode == "firmware":
+        try:
+            cfg = get_config()
+            drv = driver_for_record({**miner, "timeout": cfg.polling.request_timeout})
+            await drv.set_auto_fan(True)
+            logger.info("Configured miner #%d fan control to firmware auto for benchmark", miner_id)
+        except Exception as e:
+            logger.warning("Failed setting firmware auto fan for benchmark on miner #%d: %s", miner_id, e)
+    elif bench_fan_mode == "pin" and pin_fan_pct is not None:
         try:
             await _set_fan_speed(miner_id, pin_fan_pct)
         except Exception as e:
@@ -267,6 +275,96 @@ async def _run_benchmark_sweep(
                 logger.info("Halting benchmark #%d due to thermal safety net", benchmark_id)
                 await db.update_miner_benchmark(benchmark_id, status="aborted", current_step=idx + 1)
                 break
+
+        # Optional Microtuning Sweep Phase
+        enable_micro = bool(config.get("enable_microtuning"))
+        micro_f_step = int(config.get("micro_freq_step_mhz", 5))
+        micro_v_step = int(config.get("micro_volt_step_mv", 10))
+
+        if enable_micro and stable_samples and not _abort_flags.get(miner_id):
+            best_eff_cand = min(stable_samples, key=lambda s: s["efficiency_j_th"] or 9999.0)
+            best_hash_cand = max(stable_samples, key=lambda s: s["hashrate_ths"] or 0.0)
+
+            sampled_pairs = {(s["freq_mhz"], s["voltage_mv"]) for s in stable_samples}
+            micro_candidates: set[tuple[int, int]] = set()
+
+            for cand in (best_eff_cand, best_hash_cand):
+                cfreq = cand["freq_mhz"]
+                cvolt = cand["voltage_mv"]
+                f_start = max(min_freq, cfreq - freq_step)
+                f_end = min(max_freq, cfreq + freq_step)
+                v_start = max(min_volt, cvolt - volt_step)
+                v_end = min(max_volt, cvolt + volt_step)
+
+                for f in range(f_start, f_end + 1, micro_f_step):
+                    for v in range(v_start, v_end + 1, micro_v_step):
+                        if (f, v) not in sampled_pairs:
+                            micro_candidates.add((f, v))
+
+            if micro_candidates:
+                logger.info("Starting microtuning sweep with %d fine candidate points on miner #%d", len(micro_candidates), miner_id)
+                for f, v in sorted(list(micro_candidates)):
+                    if _abort_flags.get(miner_id):
+                        break
+
+                    try:
+                        await _apply_freq_and_volt(miner_id, f, v)
+                    except Exception as e:
+                        logger.warning("Error microtuning freq=%d volt=%d: %s", f, v, e)
+
+                    m_dwell_samples: list[dict[str, Any]] = []
+                    m_aborted = False
+                    m_abort_reason = None
+
+                    for _ in range(dwell_time_s):
+                        if _abort_flags.get(miner_id):
+                            m_aborted = True
+                            break
+                        await asyncio.sleep(1)
+                        latest = await _get_latest_metrics(miner_id)
+                        if latest:
+                            m_dwell_samples.append(latest)
+                            chip_t = latest.get("temp_chip_c")
+                            vr_t = latest.get("temp_vr_c")
+                            if (chip_t and chip_t >= max_chip_temp + 2.0) or (vr_t and vr_t >= max_vr_temp + 2.0):
+                                m_aborted = True
+                                m_abort_reason = f"Thermal safety trigger (Chip: {chip_t}°C, VR: {vr_t}°C)"
+                                break
+
+                    if m_aborted and _abort_flags.get(miner_id):
+                        break
+
+                    window_size = max(5, dwell_time_s // 3)
+                    m_window = m_dwell_samples[-window_size:] if m_dwell_samples else []
+                    def _m_avg(key: str) -> float | None:
+                        vals = [s[key] for s in m_window if s.get(key) is not None]
+                        return (sum(vals) / len(vals)) if vals else None
+
+                    hr = _m_avg("hashrate_ths") or 0.0
+                    power = _m_avg("power_w") or 0.0
+                    chip_t = _m_avg("temp_chip_c")
+                    vr_t = _m_avg("temp_vr_c")
+                    hw_err = _m_avg("error_pct") or 0.0
+                    rej_pct = _m_avg("reject_pct") or 0.0
+                    eff_err = max(hw_err, rej_pct)
+                    j_th = (power / hr) if (hr > 0 and power > 0) else None
+                    is_stable = not m_aborted and eff_err <= max_error_rate_pct and hr > 0
+
+                    m_sample = {
+                        "freq_mhz": f,
+                        "voltage_mv": v,
+                        "hashrate_ths": round(hr, 3) if hr > 0 else None,
+                        "power_w": round(power, 1) if power > 0 else None,
+                        "efficiency_j_th": round(j_th, 2) if j_th is not None else None,
+                        "chip_temp_c": round(chip_t, 1) if chip_t is not None else None,
+                        "vr_temp_c": round(vr_t, 1) if vr_t is not None else None,
+                        "error_rate_pct": round(eff_err, 2),
+                        "stable": is_stable,
+                        "abort_reason": m_abort_reason if not is_stable else None,
+                    }
+                    await db.add_benchmark_sample(benchmark_id, miner_id, m_sample)
+                    if is_stable and j_th is not None:
+                        stable_samples.append(m_sample)
 
         # Sweep finished — calculate best profiles
         best_eff = None

@@ -49,8 +49,11 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const [voltStep, setVoltStep] = useState<number>(25);
   const [dwellTime, setDwellTime] = useState<number>(30);
   const [maxErrorRate, setMaxErrorRate] = useState<number>(1.1);
-  const [pinFanEnabled, setPinFanEnabled] = useState<boolean>(false);
-  const [pinFanPct, setPinFanPct] = useState<number>(85);
+  const [benchFanMode, setBenchFanMode] = useState<'pin' | 'firmware' | 'minerwatch'>('pin');
+  const [pinFanPct, setPinFanPct] = useState<number>(100);
+  const [enableMicrotuning, setEnableMicrotuning] = useState<boolean>(false);
+  const [microFreqStep, setMicroFreqStep] = useState<number>(5);
+  const [microVoltStep, setMicroVoltStep] = useState<number>(10);
 
   // Sync defaults when data arrives
   useEffect(() => {
@@ -76,7 +79,11 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       voltage_step_mv: voltStep,
       dwell_time_s: dwellTime,
       max_error_rate_pct: maxErrorRate,
-      pin_fan_pct: pinFanEnabled ? pinFanPct : null,
+      fan_mode: benchFanMode,
+      pin_fan_pct: benchFanMode === 'pin' ? pinFanPct : null,
+      enable_microtuning: enableMicrotuning,
+      micro_freq_step_mhz: microFreqStep,
+      micro_volt_step_mv: microVoltStep,
     });
   };
 
@@ -357,30 +364,79 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Fan Governor Control</Label>
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="pin-fan-chk"
-                  checked={pinFanEnabled}
-                  onChange={(e) => setPinFanEnabled(e.target.checked)}
+              <Label className="text-xs">Fan Control Mode during Sweep</Label>
+              <select
+                value={benchFanMode}
+                onChange={(e) => setBenchFanMode(e.target.value as any)}
+                disabled={running}
+                className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs font-mono text-foreground focus:outline-none"
+              >
+                <option value="pin">Fixed Fan Speed (%)</option>
+                <option value="firmware">Firmware Auto (Quiet Search)</option>
+                <option value="minerwatch">MinerWatch Auto-Fan</option>
+              </select>
+            </div>
+
+            {benchFanMode === 'pin' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-mono">Pinned Fan Speed (%)</Label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={100}
+                  value={pinFanPct}
+                  onChange={(e) => setPinFanPct(Number(e.target.value))}
                   disabled={running}
-                  className="rounded border-border"
+                  className="h-8 text-xs font-mono"
                 />
-                <label htmlFor="pin-fan-chk" className="text-xs cursor-pointer select-none">
-                  Pin Fan Speed (%)
-                </label>
-                {pinFanEnabled && (
+              </div>
+            )}
+          </div>
+
+          {/* Optional Microtuning Settings */}
+          <div className="pt-3 border-t border-border/50 space-y-3 text-xs">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="microtune-chk"
+                checked={enableMicrotuning}
+                onChange={(e) => setEnableMicrotuning(e.target.checked)}
+                disabled={running}
+                className="rounded border-border text-emerald-500 focus:ring-emerald-500"
+              />
+              <label htmlFor="microtune-chk" className="font-semibold text-foreground cursor-pointer select-none">
+                Enable Fine Microtuning Sweep (home in on precise optimal point)
+              </label>
+            </div>
+
+            {enableMicrotuning && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6 pt-1">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Fine Micro Frequency Step (MHz)</Label>
                   <Input
                     type="number"
-                    value={pinFanPct}
-                    onChange={(e) => setPinFanPct(Number(e.target.value))}
+                    min={1}
+                    max={20}
+                    value={microFreqStep}
+                    onChange={(e) => setMicroFreqStep(Number(e.target.value))}
                     disabled={running}
-                    className="h-7 w-16 text-xs font-mono ml-auto"
+                    className="h-8 text-xs font-mono"
                   />
-                )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Fine Micro Voltage Step (mV)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={microVoltStep}
+                    onChange={(e) => setMicroVoltStep(Number(e.target.value))}
+                    disabled={running}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>

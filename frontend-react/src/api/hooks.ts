@@ -895,7 +895,11 @@ export interface BenchmarkStartPayload {
   voltage_step_mv: number;
   dwell_time_s: number;
   max_error_rate_pct: number;
+  fan_mode?: 'pin' | 'firmware' | 'minerwatch';
   pin_fan_pct?: number | null;
+  enable_microtuning?: boolean;
+  micro_freq_step_mhz?: number;
+  micro_volt_step_mv?: number;
 }
 
 export function useMinerBenchmarkStatus(minerId: number) {

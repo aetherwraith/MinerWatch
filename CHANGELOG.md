@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.0] — 2026-07-29
+
+### Added
+
+- **Benchmark Microtuning Mode.** Added an optional fine microtuning phase (`enable_microtuning`) to the Benchmark sweep. Once coarse optimal candidates for efficiency and max hashrate are discovered, a secondary fine-grain sweep probes adjacent operating points (e.g. ±5 MHz / ±10 mV) to pinpoint exact peak efficiency.
+- **Firmware Auto Fan Benchmark Option.** Added support for running benchmark sweeps under the miner's native **Firmware Auto (Quiet Search)** fan mode, enabling efficiency discovery under real-world quiet fan operating conditions.
+
+### Changed
+
+- **Strict MinerWatch Fan Control Scoping in Guardian.** Restricted Guardian governor fan overrides strictly to `fan_mode == 'minerwatch'`. When the miner is set to `Firmware (Auto)` or `Manual`, Guardian will not alter the device fan settings (leaving native firmware quiet fan management fully active).
+
 ## [1.34.0] — 2026-07-29
 
 ### Added
