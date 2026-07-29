@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.35.4] — 2026-07-29
+
+### Fixed
+
+- **Form State Overwrite Bug in Profile Save.** Fixed an issue where background telemetry refetches every 5 seconds were re-running `useEffect` in `GuardianPanel` and resetting user-edited form fields (Profile Fan Mode, Core Voltage, Fan Speed %). Form inputs are now initialized strictly once upon load and preserve user edits until submitted.
+
 ## [1.35.3] — 2026-07-29
 
 ### Fixed

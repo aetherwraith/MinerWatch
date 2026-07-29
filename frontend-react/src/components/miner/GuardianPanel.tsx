@@ -722,20 +722,23 @@ function GuardianProfilesAndSchedules({
   const [schedTime, setSchedTime] = useState('08:00');
   const [schedDays] = useState<string[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
 
+  const [initialized, setInitialized] = useState(false);
+
   useEffect(() => {
-    if (currentFreq && (profFreq === 500 || profFreq === '')) {
-      setProfFreq(currentFreq);
+    if (initialized) return;
+
+    if (currentFreq) setProfFreq(currentFreq);
+    if (minerVolt != null && minerVolt > 0) setProfVolt(minerVolt);
+    if (minerFanMode) {
+      const fm = minerFanMode.toLowerCase();
+      setProfFanMode(fm === 'manual' || fm === 'minerwatch' || fm === 'firmware' ? fm : 'manual');
     }
-    if (minerVolt != null) {
-      setProfVolt(minerVolt);
+    if (minerFanSpeed != null) setCustomFanPct(minerFanSpeed);
+
+    if (currentFreq || minerVolt || minerFanMode || minerFanSpeed) {
+      setInitialized(true);
     }
-    if (minerFanMode && profFanMode === 'manual') {
-      setProfFanMode(minerFanMode.toLowerCase());
-    }
-    if (minerFanSpeed && customFanPct === 60) {
-      setCustomFanPct(minerFanSpeed);
-    }
-  }, [currentFreq, minerVolt, minerFanMode, minerFanSpeed]);
+  }, [currentFreq, minerVolt, minerFanMode, minerFanSpeed, initialized]);
 
   const handleSaveProfile = () => {
     if (!newProfileName.trim()) return;
@@ -757,7 +760,7 @@ function GuardianProfilesAndSchedules({
     }
 
     const freqVal = profFreq !== '' ? Number(profFreq) : (currentFreq ?? 500);
-    const voltVal = profVolt !== '' ? Number(profVolt) : undefined;
+    const voltVal = profVolt !== '' && Number(profVolt) > 0 ? Number(profVolt) : undefined;
 
     saveProfile.mutate(
       {
@@ -771,6 +774,9 @@ function GuardianProfilesAndSchedules({
       {
         onSuccess: () => {
           setNewProfileName('');
+        },
+        onError: (err) => {
+          console.error('Save profile error:', err);
         },
       }
     );
