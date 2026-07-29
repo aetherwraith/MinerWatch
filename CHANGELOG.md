@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.36.2] — 2026-07-29
+
+### Fixed
+
+- **Active Benchmark View Enforcement Across Sessions.** When a benchmark is active, any browser connecting to or opening `BenchmarkTab` renders the active live execution dashboard (progress bar, parameters summary, real-time leaderboard cards, and live matrix sample log table) and hides the parameter configuration setup card.
+
 ## [1.36.1] — 2026-07-29
 
 ### Added

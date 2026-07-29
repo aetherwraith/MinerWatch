@@ -536,192 +536,194 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
         </div>
       )}
 
-      {/* Sweep Configuration Controls */}
-      <Card className="border-border/60">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Sweep Parameters</CardTitle>
-          <CardDescription>
-            Configure min/max operating frequency (MHz), core voltage (mV), step sizes, and stability thresholds
-          </CardDescription>
-        </CardHeader>
+      {/* Sweep Configuration Controls (Only shown when no benchmark is running) */}
+      {!running && (
+        <Card className="border-border/60">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Sweep Parameters</CardTitle>
+            <CardDescription>
+              Configure min/max operating frequency (MHz), core voltage (mV), step sizes, and stability thresholds
+            </CardDescription>
+          </CardHeader>
 
-        <CardContent className="space-y-5">
-          {/* Frequency & Voltage Matrix Inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Min Frequency (MHz)</Label>
-              <Input
-                type="number"
-                value={minFreq}
-                onChange={(e) => setMinFreq(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Max Frequency (MHz)</Label>
-              <Input
-                type="number"
-                value={maxFreq}
-                onChange={(e) => setMaxFreq(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Frequency Step (MHz)</Label>
-              <Input
-                type="number"
-                value={freqStep}
-                onChange={(e) => setFreqStep(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Min Voltage (mV)</Label>
-              <Input
-                type="number"
-                value={minVolt}
-                onChange={(e) => setMinVolt(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Max Voltage (mV)</Label>
-              <Input
-                type="number"
-                value={maxVolt}
-                onChange={(e) => setMaxVolt(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Voltage Step (mV)</Label>
-              <Input
-                type="number"
-                value={voltStep}
-                onChange={(e) => setVoltStep(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs">Dwell Time per Step (sec)</Label>
-              <Input
-                type="number"
-                value={dwellTime}
-                onChange={(e) => setDwellTime(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Max Error Rate (%)</Label>
-              <Input
-                type="number"
-                step="0.5"
-                value={maxErrorRate}
-                onChange={(e) => setMaxErrorRate(Number(e.target.value))}
-                disabled={running}
-                className="h-8 text-xs font-mono"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Fan Control Mode during Sweep</Label>
-              <select
-                value={benchFanMode}
-                onChange={(e) => setBenchFanMode(e.target.value as any)}
-                disabled={running}
-                className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs font-mono text-foreground focus:outline-none"
-              >
-                <option value="pin">Fixed Fan Speed (%)</option>
-                <option value="firmware">Firmware Auto (Quiet Search)</option>
-                <option value="minerwatch">MinerWatch Auto-Fan</option>
-              </select>
-            </div>
-
-            {benchFanMode === 'pin' ? (
+          <CardContent className="space-y-5">
+            {/* Frequency & Voltage Matrix Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
               <div className="space-y-1.5">
-                <Label className="text-xs font-mono">Pinned Fan Speed (%)</Label>
+                <Label className="text-xs">Min Frequency (MHz)</Label>
                 <Input
                   type="number"
-                  min={10}
-                  max={100}
-                  value={pinFanPct}
-                  onChange={(e) => setPinFanPct(Number(e.target.value))}
-                  disabled={running}
+                  value={minFreq}
+                  onChange={(e) => setMinFreq(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
                   className="h-8 text-xs font-mono"
                 />
               </div>
-            ) : (
               <div className="space-y-1.5">
-                <Label className="text-xs font-mono text-indigo-300">Max Quiet Fan Limit (%)</Label>
+                <Label className="text-xs">Max Frequency (MHz)</Label>
                 <Input
                   type="number"
-                  min={10}
-                  max={100}
-                  value={quietFanMaxPct}
-                  onChange={(e) => setQuietFanMaxPct(Number(e.target.value))}
-                  disabled={running}
-                  placeholder="e.g. 65"
-                  className="h-8 text-xs font-mono border-indigo-500/40 focus:border-indigo-400"
+                  value={maxFreq}
+                  onChange={(e) => setMaxFreq(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
                 />
               </div>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Frequency Step (MHz)</Label>
+                <Input
+                  type="number"
+                  value={freqStep}
+                  onChange={(e) => setFreqStep(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
 
-          {/* Optional Microtuning Settings */}
-          <div className="pt-3 border-t border-border/50 space-y-3 text-xs">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="microtune-chk"
-                checked={enableMicrotuning}
-                onChange={(e) => setEnableMicrotuning(e.target.checked)}
-                disabled={running}
-                className="rounded border-border text-emerald-500 focus:ring-emerald-500"
-              />
-              <label htmlFor="microtune-chk" className="font-semibold text-foreground cursor-pointer select-none">
-                Enable Fine Microtuning Sweep (home in on precise optimal point)
-              </label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Min Voltage (mV)</Label>
+                <Input
+                  type="number"
+                  value={minVolt}
+                  onChange={(e) => setMinVolt(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Max Voltage (mV)</Label>
+                <Input
+                  type="number"
+                  value={maxVolt}
+                  onChange={(e) => setMaxVolt(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Voltage Step (mV)</Label>
+                <Input
+                  type="number"
+                  value={voltStep}
+                  onChange={(e) => setVoltStep(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Dwell Time per Step (sec)</Label>
+                <Input
+                  type="number"
+                  value={dwellTime}
+                  onChange={(e) => setDwellTime(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Max Error Rate (%)</Label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  value={maxErrorRate}
+                  onChange={(e) => setMaxErrorRate(Number(e.target.value))}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Fan Control Mode during Sweep</Label>
+                <select
+                  value={benchFanMode}
+                  onChange={(e) => setBenchFanMode(e.target.value as any)}
+                  disabled={running || isUnacknowledged}
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs font-mono text-foreground focus:outline-none"
+                >
+                  <option value="pin">Fixed Fan Speed (%)</option>
+                  <option value="firmware">Firmware Auto (Quiet Search)</option>
+                  <option value="minerwatch">MinerWatch Auto-Fan</option>
+                </select>
+              </div>
+
+              {benchFanMode === 'pin' ? (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-mono">Pinned Fan Speed (%)</Label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={100}
+                    value={pinFanPct}
+                    onChange={(e) => setPinFanPct(Number(e.target.value))}
+                    disabled={running || isUnacknowledged}
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-mono text-indigo-300">Max Quiet Fan Limit (%)</Label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={100}
+                    value={quietFanMaxPct}
+                    onChange={(e) => setQuietFanMaxPct(Number(e.target.value))}
+                    disabled={running || isUnacknowledged}
+                    placeholder="e.g. 65"
+                    className="h-8 text-xs font-mono border-indigo-500/40 focus:border-indigo-400"
+                  />
+                </div>
+              )}
             </div>
 
-            {enableMicrotuning && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6 pt-1">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Fine Micro Frequency Step (MHz)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={microFreqStep}
-                    onChange={(e) => setMicroFreqStep(Number(e.target.value))}
-                    disabled={running}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Fine Micro Voltage Step (mV)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={microVoltStep}
-                    onChange={(e) => setMicroVoltStep(Number(e.target.value))}
-                    disabled={running}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
+            {/* Optional Microtuning Settings */}
+            <div className="pt-3 border-t border-border/50 space-y-3 text-xs">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="microtune-chk"
+                  checked={enableMicrotuning}
+                  onChange={(e) => setEnableMicrotuning(e.target.checked)}
+                  disabled={running || isUnacknowledged}
+                  className="rounded border-border text-emerald-500 focus:ring-emerald-500"
+                />
+                <label htmlFor="microtune-chk" className="font-semibold text-foreground cursor-pointer select-none">
+                  Enable Fine Microtuning Sweep (home in on precise optimal point)
+                </label>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
+              {enableMicrotuning && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-6 pt-1">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Fine Micro Frequency Step (MHz)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={microFreqStep}
+                      onChange={(e) => setMicroFreqStep(Number(e.target.value))}
+                      disabled={running || isUnacknowledged}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Fine Micro Voltage Step (mV)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={microVoltStep}
+                      onChange={(e) => setMicroVoltStep(Number(e.target.value))}
+                      disabled={running || isUnacknowledged}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Benchmark Sweep Chart */}
       {chartData.length > 0 && (
