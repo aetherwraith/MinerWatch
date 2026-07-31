@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.0] — 2026-07-31
+
+### Added & Performance Optimizations
+
+- **Shared HTTP Connection Pooling (`backend/client_pool.py`).** Added a global singleton `httpx.AsyncClient` with TCP keep-alive and connection pooling across driver polling and background tasks, eliminating per-request TCP socket creation overhead.
+- **SQLite Performance Tuning & Composite Indexing (`backend/db.py`).** Added `PRAGMA synchronous = NORMAL;`, `PRAGMA busy_timeout = 5000;`, and composite database indexes on `benchmark_samples` and `miner_benchmarks`, resolving lock contention under heavy logging/polling.
+- **Driver Capability & Metadata Caching.** Implemented in-memory caching for `fetch_asic_info()` and `probe()` in `BitaxeDriver` and `NMAxeDriver` to reduce redundant HTTP requests during tight polling loops.
+- **Vite Bundle Code-Splitting Optimization (`vite.config.ts`).** Custom `manualChunks` strategy in Rollup to split `recharts`, `lucide-react`, `react`, and `@tanstack/react-query` into vendor chunks. Reduced main JS index bundle size from 648 kB down to 298 kB, resolving Vite bundle warnings and cutting initial page load JS payload by ~55%.
+
 ## [1.37.16] — 2026-07-31
 
 ### Fixed

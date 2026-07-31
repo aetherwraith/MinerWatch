@@ -408,6 +408,7 @@ CREATE TABLE IF NOT EXISTS miner_benchmarks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_miner_benchmarks_miner ON miner_benchmarks(miner_id);
+CREATE INDEX IF NOT EXISTS idx_miner_benchmarks_miner_created ON miner_benchmarks(miner_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS benchmark_samples (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -429,6 +430,7 @@ CREATE TABLE IF NOT EXISTS benchmark_samples (
 );
 
 CREATE INDEX IF NOT EXISTS idx_benchmark_samples_bench ON benchmark_samples(benchmark_id);
+CREATE INDEX IF NOT EXISTS idx_benchmark_samples_bench_freq_volt ON benchmark_samples(benchmark_id, freq_mhz, voltage_mv);
 
 CREATE TABLE IF NOT EXISTS guardian_profiles (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -513,6 +515,8 @@ async def connect() -> AsyncIterator[aiosqlite.Connection]:
             pass
         try:
             await conn.execute(f"PRAGMA journal_mode = {_journal_mode}")
+            await conn.execute("PRAGMA synchronous = NORMAL")
+            await conn.execute("PRAGMA busy_timeout = 5000")
         except Exception:  # noqa: BLE001
             pass
         yield conn

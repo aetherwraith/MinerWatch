@@ -46,10 +46,21 @@ export default defineConfig({
     // cached across deploys when only app code changes.
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          query: ['@tanstack/react-query'],
-          charts: ['recharts'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'charts';
+            }
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+            if (id.includes('@tanstack/react-query') || id.includes('@tanstack/query-core')) {
+              return 'query';
+            }
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'react';
+            }
+          }
         },
       },
     },

@@ -134,6 +134,8 @@ async def lifespan(app: FastAPI):
     await guardian.stop()
     await auto_fan.stop()
     await poller.stop()
+    from .client_pool import close_shared_client
+    await close_shared_client()
 
 
 app = FastAPI(title="MinerWatch", version=updater.read_version(), lifespan=lifespan)

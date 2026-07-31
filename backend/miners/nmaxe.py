@@ -75,15 +75,20 @@ class NmaxeDriver(BitaxeDriver):
         have no ``/probe`` endpoint, so a 200 whose ``model`` starts with
         "NM" is a reliable NMAxe marker. Best-effort: ``{}`` on any error.
         """
+        if getattr(self, "_probe_cache", None) is not None:
+            return getattr(self, "_probe_cache")
         url = f"{self._base_url()}/probe"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.get(url)
-                resp.raise_for_status()
-                data = resp.json()
+            cli = get_shared_client()
+            resp = await cli.get(url, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, dict):
+                setattr(self, "_probe_cache", data)
+                return data
         except (httpx.HTTPError, ValueError):
             return {}
-        return data if isinstance(data, dict) else {}
+        return {}
 
     def _parse(self, data: dict[str, Any]) -> MinerSample:
         power = data.get("power") if isinstance(data.get("power"), dict) else {}
@@ -182,9 +187,9 @@ class NmaxeDriver(BitaxeDriver):
     async def _patch_preference(self, payload: dict[str, Any]) -> bool:
         url = f"{self._base_url()}/api/setting/preference"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.patch(url, json=payload)
-                resp.raise_for_status()
+            cli = get_shared_client()
+            resp = await cli.patch(url, json=payload, timeout=self.timeout)
+            resp.raise_for_status()
         except httpx.HTTPError:
             return False
         return True

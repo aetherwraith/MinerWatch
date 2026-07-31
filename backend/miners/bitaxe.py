@@ -15,6 +15,7 @@ from typing import Any
 
 import httpx
 
+from ..client_pool import get_shared_client
 from .base import (
     MinerDriver,
     MinerSample,
@@ -56,10 +57,10 @@ class BitaxeDriver(MinerDriver):
     async def poll(self) -> MinerSample:
         url = f"{self._base_url()}/api/system/info"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.get(url)
-                resp.raise_for_status()
-                data = resp.json()
+            cli = get_shared_client()
+            resp = await cli.get(url, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             return MinerSample(
                 family=self.family,
@@ -83,15 +84,20 @@ class BitaxeDriver(MinerDriver):
         Best-effort: returns ``{}`` on any error, or on firmware too old
         to expose the endpoint, so callers can fall back to ``ASICModel``.
         """
+        if getattr(self, "_asic_info_cache", None) is not None:
+            return getattr(self, "_asic_info_cache")
         url = f"{self._base_url()}/api/system/asic"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.get(url)
-                resp.raise_for_status()
-                data = resp.json()
+            cli = get_shared_client()
+            resp = await cli.get(url, timeout=self.timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, dict):
+                setattr(self, "_asic_info_cache", data)
+                return data
         except (httpx.HTTPError, ValueError):
             return {}
-        return data if isinstance(data, dict) else {}
+        return {}
 
     @staticmethod
     def _ths(hashrate_value: Any) -> float | None:
@@ -347,9 +353,9 @@ class BitaxeDriver(MinerDriver):
     async def _patch_system(self, payload: dict[str, Any]) -> bool:
         url = f"{self._base_url()}/api/system"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.patch(url, json=payload)
-                resp.raise_for_status()
+            cli = get_shared_client()
+            resp = await cli.patch(url, json=payload, timeout=self.timeout)
+            resp.raise_for_status()
         except httpx.HTTPError:
             return False
         return True
@@ -385,9 +391,9 @@ class BitaxeDriver(MinerDriver):
     async def restart(self) -> bool:
         url = f"{self._base_url()}/api/system/restart"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.post(url)
-                resp.raise_for_status()
+            cli = get_shared_client()
+            resp = await cli.post(url, timeout=self.timeout)
+            resp.raise_for_status()
         except httpx.HTTPError:
             return False
         return True
@@ -403,9 +409,9 @@ class BitaxeDriver(MinerDriver):
         """
         url = f"{self._base_url()}/api/system/pause"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.post(url)
-                resp.raise_for_status()
+            cli = get_shared_client()
+            resp = await cli.post(url, timeout=self.timeout)
+            resp.raise_for_status()
         except httpx.HTTPError:
             return False
         return True
@@ -414,9 +420,9 @@ class BitaxeDriver(MinerDriver):
         """Resume hashing via AxeOS ``POST /api/system/resume``."""
         url = f"{self._base_url()}/api/system/resume"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as cli:
-                resp = await cli.post(url)
-                resp.raise_for_status()
+            cli = get_shared_client()
+            resp = await cli.post(url, timeout=self.timeout)
+            resp.raise_for_status()
         except httpx.HTTPError:
             return False
         return True
@@ -427,10 +433,10 @@ class BitaxeDriver(MinerDriver):
         """GET /api/system/info. Mirrors the fetch inlined in poll(); kept
         as a small helper so read_pool_config() can reuse it."""
         url = f"{self._base_url()}/api/system/info"
-        async with httpx.AsyncClient(timeout=self.timeout) as cli:
-            resp = await cli.get(url)
-            resp.raise_for_status()
-            return resp.json()
+        cli = get_shared_client()
+        resp = await cli.get(url, timeout=self.timeout)
+        resp.raise_for_status()
+        return resp.json()
 
     async def read_pool_config(self) -> PoolConfig:
         """Snapshot the current stratum config (primary + fallback).
