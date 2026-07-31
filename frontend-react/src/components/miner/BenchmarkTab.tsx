@@ -173,8 +173,12 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       volt: s.voltage_mv,
       efficiency: s.efficiency_j_th ? Number(s.efficiency_j_th.toFixed(1)) : null,
       hashrate: s.hashrate_ths ? Number(s.hashrate_ths.toFixed(2)) : null,
+      power: s.power_w ? Number(s.power_w.toFixed(1)) : null,
       chipTemp: s.chip_temp_c ? Number(s.chip_temp_c.toFixed(1)) : null,
+      vrTemp: s.vr_temp_c ? Number(s.vr_temp_c.toFixed(1)) : null,
+      errorRate: s.error_rate_pct != null ? Number(s.error_rate_pct.toFixed(1)) : null,
       stable: !!s.stable,
+      abortReason: s.abort_reason || (!s.stable ? 'Unstable / Error Rate Exceeded' : null),
       isMicro: idx >= coarseTotal,
     }));
   }, [samples, coarseTotal]);
@@ -1001,16 +1005,67 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       label={{ value: 'Hashrate (TH/s)', angle: 90, position: 'insideRight', fill: '#38bdf8', fontSize: 11 }}
                     />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0f172a',
-                        borderColor: 'rgba(255,255,255,0.15)',
-                        borderRadius: '8px',
-                        fontSize: '12px',
+                      content={({ active, payload }) => {
+                        if (!active || !payload || !payload.length) return null;
+                        const data = payload[0].payload;
+                        const isUnstable = !data.stable;
+                        return (
+                          <div className="rounded-lg border border-border/80 bg-slate-950/95 p-3 text-xs shadow-xl backdrop-blur space-y-1.5 min-w-[210px]">
+                            <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-1.5">
+                              <span className="font-semibold text-slate-100">{data.name}</span>
+                              <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${data.stable ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/15 text-red-400 border border-red-500/30'}`}>
+                                {data.stable ? 'Stable' : 'Unstable'}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                              {data.efficiency !== null && (
+                                <div>
+                                  <span className="text-muted-foreground">Efficiency: </span>
+                                  <span className="font-mono text-emerald-400 font-medium">{data.efficiency} J/TH</span>
+                                </div>
+                              )}
+                              {data.hashrate !== null && (
+                                <div>
+                                  <span className="text-muted-foreground">Hashrate: </span>
+                                  <span className="font-mono text-sky-400 font-medium">{data.hashrate} TH/s</span>
+                                </div>
+                              )}
+                              {data.power !== null && (
+                                <div>
+                                  <span className="text-muted-foreground">Power: </span>
+                                  <span className="font-mono text-slate-200">{data.power} W</span>
+                                </div>
+                              )}
+                              {data.chipTemp !== null && (
+                                <div>
+                                  <span className="text-muted-foreground">Chip Temp: </span>
+                                  <span className="font-mono text-amber-300">{data.chipTemp} °C</span>
+                                </div>
+                              )}
+                              {data.vrTemp !== null && (
+                                <div>
+                                  <span className="text-muted-foreground">VR Temp: </span>
+                                  <span className="font-mono text-amber-300">{data.vrTemp} °C</span>
+                                </div>
+                              )}
+                              {data.errorRate !== null && (
+                                <div>
+                                  <span className="text-muted-foreground">Error Rate: </span>
+                                  <span className={`font-mono ${data.errorRate > 0 ? 'text-red-400 font-semibold' : 'text-slate-300'}`}>{data.errorRate}%</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {isUnstable && (
+                              <div className="mt-1.5 border-t border-red-500/30 pt-1.5 text-[11px] text-red-300 bg-red-950/40 p-1.5 rounded border border-red-800/40">
+                                <span className="font-semibold text-red-400 block mb-0.5">⚠️ Instability Trigger:</span>
+                                <span>{data.abortReason || 'Hardware error rate or stability threshold exceeded'}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
                       }}
-                      formatter={(val: number, name: string) => [
-                        name.includes('Efficiency') ? `${val} J/TH` : `${val} TH/s`,
-                        name,
-                      ]}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                     <Bar yAxisId="left" dataKey="efficiency" name="Efficiency (J/TH)" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.85} />
@@ -1085,8 +1140,12 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                               Stable
                             </Badge>
                           ) : (
-                            <Badge variant="destructive" className="text-[10px]" title={s.abort_reason || 'Unstable'}>
-                              Unstable
+                            <Badge
+                              variant="destructive"
+                              className="text-[10px] cursor-help transition-opacity hover:opacity-90"
+                              title={s.abort_reason ? `Instability Trigger: ${s.abort_reason}` : 'Unstable / Error Rate Exceeded'}
+                            >
+                              ⚠️ Unstable
                             </Badge>
                           )}
                         </td>

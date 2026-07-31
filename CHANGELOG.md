@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.2] — 2026-07-31
+
+### Added
+
+- **Benchmark Instability Trigger Tooltips (`BenchmarkTab.tsx`).** Added a rich custom chart tooltip and interactive table status badges displaying explicit instability details (e.g. thermal trigger temps, zero hashrate output, or high hardware error rates) when hovering over or viewing unstable benchmark points.
+
 ## [1.38.1] — 2026-07-31
 
 ### Fixed
