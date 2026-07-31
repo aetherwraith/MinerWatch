@@ -1104,10 +1104,37 @@ class GuardianController:
             "asic_errors": asic_errors,
             "asic_error_delta": asic_error_delta,
             "reason": reason,
-            "changed": bool(changed),
             "is_tuning": self.is_tuning(miner_id),
             "ts": int(time.time()),
         }
+
+    def get_target_max_temps(self, miner: dict) -> tuple[float, float]:
+        """Resolve exact Guardian target max chip and VR temperatures for a miner."""
+        return get_target_max_temps(miner)
+
+
+def get_target_max_temps(miner: dict) -> tuple[float, float]:
+    """Resolve exact Guardian target max chip and VR temperatures for a miner."""
+    gcfg = get_config().guardian
+    family_name = (miner.get("family") or "").lower()
+    vr_default_high, _ = gcfg.temp_band("vr", family_name)
+    chip_default_high, _ = gcfg.temp_band("chip", family_name)
+
+    max_vr_temp = miner.get("guardian_max_vr_temp_c")
+    if not max_vr_temp and str(miner.get("guardian_temp_source") or "").lower() == "vr":
+        max_vr_temp = miner.get("guardian_max_temp_c")
+    if not max_vr_temp and miner.get("fan_vr_target_c") is not None:
+        max_vr_temp = miner.get("fan_vr_target_c")
+    vr_high = float(max_vr_temp) if max_vr_temp else float(vr_default_high)
+
+    max_chip_temp = miner.get("guardian_max_chip_temp_c")
+    if not max_chip_temp and str(miner.get("guardian_temp_source") or "").lower() == "chip":
+        max_chip_temp = miner.get("guardian_max_temp_c")
+    if not max_chip_temp and miner.get("auto_target_c") is not None:
+        max_chip_temp = miner.get("auto_target_c")
+    chip_high = float(max_chip_temp) if max_chip_temp else float(chip_default_high)
+
+    return chip_high, vr_high
 
 
 def _coerce_bool(value: Any) -> bool:

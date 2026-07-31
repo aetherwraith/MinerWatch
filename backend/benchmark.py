@@ -219,9 +219,10 @@ async def _run_benchmark_sweep(
     # Default error rate threshold set to Guardian's 1.1% threshold
     max_error_rate_pct = float(config.get("max_error_rate_pct", 1.1))
 
-    # Thermal safety cutoffs (default 70°C chip / 85°C VR or miner Guardian caps)
-    max_chip_temp = float(miner.get("guardian_max_chip_temp_c") or miner.get("guardian_max_temp_c") or 68.0)
-    max_vr_temp = float(miner.get("guardian_max_vr_temp_c") or 82.0)
+    # Thermal safety cutoffs (from explicit parameter override or Guardian caps)
+    guardian_chip_max, guardian_vr_max = guardian.get_target_max_temps(miner)
+    max_chip_temp = float(config.get("target_max_chip_temp_c") or guardian_chip_max)
+    max_vr_temp = float(config.get("target_max_vr_temp_c") or guardian_vr_max)
 
     # Disable Guardian governor while benchmarking to prevent interference,
     # and reset any active tuning state/fan pin

@@ -1816,6 +1816,8 @@ class BenchmarkStartPayload(BaseModel):
     micro_freq_step_mhz: int = Field(default=5, ge=1, le=50)
     micro_volt_step_mv: int = Field(default=10, ge=1, le=50)
     early_skip_sec: int = Field(default=60, ge=10, le=600)
+    target_max_chip_temp_c: float | None = Field(default=None, ge=40.0, le=100.0)
+    target_max_vr_temp_c: float | None = Field(default=None, ge=40.0, le=120.0)
 
 
 class BenchmarkApplyPayload(BaseModel):
@@ -2061,19 +2063,7 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
 
 
 def _get_target_max_temps(miner: dict) -> tuple[float, float]:
-    max_vr_temp = miner.get("guardian_max_vr_temp_c")
-    if not max_vr_temp and str(miner.get("guardian_temp_source") or "").lower() == "vr":
-        max_vr_temp = miner.get("guardian_max_temp_c")
-    vr_high = float(max_vr_temp) if max_vr_temp else 82.0
-
-    max_chip_temp = miner.get("guardian_max_chip_temp_c")
-    if not max_chip_temp and str(miner.get("guardian_temp_source") or "").lower() == "chip":
-        max_chip_temp = miner.get("guardian_max_temp_c")
-    if not max_chip_temp and miner.get("auto_target_c") is not None:
-        max_chip_temp = miner.get("auto_target_c")
-    chip_high = float(max_chip_temp) if max_chip_temp else 68.0
-
-    return chip_high, vr_high
+    return guardian.get_target_max_temps(miner)
 
 
 # ---------- API: Guardian Automated Benchmarker ----------

@@ -902,6 +902,8 @@ export interface BenchmarkStartPayload {
   micro_freq_step_mhz?: number;
   micro_volt_step_mv?: number;
   early_skip_sec?: number;
+  target_max_chip_temp_c?: number;
+  target_max_vr_temp_c?: number;
 }
 
 export function useMinerBenchmarkStatus(minerId: number) {

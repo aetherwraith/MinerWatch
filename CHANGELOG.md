@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.15] — 2026-07-31
+
+### Added
+
+- **Exposed Guardian Target Max Temps as Benchmark Parameters.** Exposed **Max Target Chip Temp (°C)** and **Max Target VR Temp (°C)** as editable parameters in the Benchmark Sweep Parameters Card on `BenchmarkTab.tsx`.
+- **Full Guardian Target Temp Resolution.** Added `get_target_max_temps(miner: dict)` function in `backend/guardian.py` and exported on `GuardianController` to resolve per-miner Guardian target temperature caps (accounting for per-family temp bands, `guardian_max_chip_temp_c`, `guardian_max_vr_temp_c`, `guardian_max_temp_c`, `fan_vr_target_c`, and `auto_target_c`).
+- **Benchmark Thermal Cutoff Overrides.** Updated `backend/benchmark.py` and `backend/main.py` (`BenchmarkStartPayload`) to accept explicit target temperature cutoffs while defaulting to the miner's resolved Guardian temperature caps.
+
 ## [1.37.14] — 2026-07-29
 
 ### Fixed

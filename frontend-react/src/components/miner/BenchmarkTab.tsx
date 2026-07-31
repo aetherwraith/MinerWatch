@@ -97,6 +97,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const [microFreqStep, setMicroFreqStep] = useState<number>(5);
   const [microVoltStep, setMicroVoltStep] = useState<number>(10);
   const [earlySkipSec, setEarlySkipSec] = useState<number>(60);
+  const [maxChipTemp, setMaxChipTemp] = useState<number>(68);
+  const [maxVrTemp, setMaxVrTemp] = useState<number>(82);
 
   // Sync defaults when data arrives
   useEffect(() => {
@@ -110,6 +112,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       setDwellTime(defaults.dwell_time_s);
       setMaxErrorRate(defaults.max_error_rate_pct);
       if (defaults.early_skip_sec) setEarlySkipSec(defaults.early_skip_sec);
+      if (defaults.target_max_chip_temp_c) setMaxChipTemp(defaults.target_max_chip_temp_c);
+      if (defaults.target_max_vr_temp_c) setMaxVrTemp(defaults.target_max_vr_temp_c);
     }
   }, [defaults]);
 
@@ -130,6 +134,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       micro_freq_step_mhz: microFreqStep,
       micro_volt_step_mv: microVoltStep,
       early_skip_sec: earlySkipSec,
+      target_max_chip_temp_c: maxChipTemp,
+      target_max_vr_temp_c: maxVrTemp,
     });
   };
 
@@ -814,6 +820,32 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   onChange={(e) => setEarlySkipSec(Number(e.target.value))}
                   disabled={running}
                   title="Min observation window before skipping non-stabilizing or out-of-bounds combinations early."
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Max Target Chip Temp (°C)</Label>
+                <Input
+                  type="number"
+                  min={40}
+                  max={100}
+                  value={maxChipTemp}
+                  onChange={(e) => setMaxChipTemp(Number(e.target.value))}
+                  disabled={running}
+                  title="Thermal safety cutoff limit for ASIC chip temperature during benchmark sweep (retrieved from Guardian)."
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Max Target VR Temp (°C)</Label>
+                <Input
+                  type="number"
+                  min={40}
+                  max={120}
+                  value={maxVrTemp}
+                  onChange={(e) => setMaxVrTemp(Number(e.target.value))}
+                  disabled={running}
+                  title="Thermal safety cutoff limit for VR temperature during benchmark sweep (retrieved from Guardian)."
                   className="h-8 text-xs font-mono"
                 />
               </div>
