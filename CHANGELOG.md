@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.1] — 2026-07-31
+
+### Fixed
+
+- **Mobile Viewport Tab Layout & Touch Scroll.** Converted tab navigation lists across `MinerPage.tsx`, `SettingsPage.tsx`, and `tabs.tsx` from fixed grids/wrappers to smooth, touch-friendly horizontal scroll containers (`overflow-x-auto scrollbar-none whitespace-nowrap`).
+- **Mobile Container Padding.** Added `.scrollbar-none` utility class in `index.css` and adjusted main content container padding on mobile screens to prevent layout overflow on smaller viewports.
+
 ## [1.38.0] — 2026-07-31
 
 ### Added & Performance Optimizations

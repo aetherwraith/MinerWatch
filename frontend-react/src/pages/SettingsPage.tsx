@@ -92,7 +92,7 @@ export function SettingsPage() {
       )}
 
       <Tabs defaultValue={initialTab} className="space-y-4">
-        <TabsList className="h-auto">
+        <TabsList className="w-full justify-start overflow-x-auto scrollbar-none p-1 gap-1">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="alerts">Alerts</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
