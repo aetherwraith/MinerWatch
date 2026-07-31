@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.37.16] — 2026-07-31
+
+### Fixed
+
+- **Microtuning Phase Variable Scope Fix.** Fixed a `NameError` in `backend/benchmark.py` (`f_start = max(min_freq, ...)` $\rightarrow$ `min_freq_mhz`, `max_freq_mhz`, `min_voltage_mv`, `max_voltage_mv`) that crashed the benchmark engine when entering Phase 2 microtuning.
+- **Unacknowledged Results Panel for Failed/Aborted Runs.** Updated `isUnacknowledged` in `BenchmarkTab.tsx` to include runs with status `'failed'`, ensuring the profile save/update and acknowledge banner renders across all browser sessions regardless of how the previous sweep completed.
+
 ## [1.37.15] — 2026-07-31
 
 ### Added

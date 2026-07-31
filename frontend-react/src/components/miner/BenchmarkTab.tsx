@@ -64,7 +64,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   const existingProfiles = profilesData?.profiles ?? [];
 
   // Acknowledgment & profile save selection state
-  const isUnacknowledged = !!latestRun && !running && (latestRun.acknowledged === 0 || latestRun.acknowledged === undefined) && (latestRun.status === 'completed' || latestRun.status === 'aborted');
+  const isUnacknowledged = !!latestRun && !running && (latestRun.acknowledged === 0 || latestRun.acknowledged === undefined) && (latestRun.status === 'completed' || latestRun.status === 'aborted' || latestRun.status === 'failed');
 
   const effExisting = existingProfiles.find((p) => p.name === 'Max Efficiency (Benchmark)');
   const hashExisting = existingProfiles.find((p) => p.name === 'Max Hashrate (Benchmark)');

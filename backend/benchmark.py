@@ -423,10 +423,10 @@ async def _run_benchmark_sweep(
             for cand in (best_eff_cand, best_hash_cand):
                 cfreq = cand["freq_mhz"]
                 cvolt = cand["voltage_mv"]
-                f_start = max(min_freq, cfreq - freq_step)
-                f_end = min(max_freq, cfreq + freq_step)
-                v_start = max(min_volt, cvolt - volt_step)
-                v_end = min(max_volt, cvolt + volt_step)
+                f_start = max(min_freq_mhz, cfreq - freq_step_mhz)
+                f_end = min(max_freq_mhz, cfreq + freq_step_mhz)
+                v_start = max(min_voltage_mv, cvolt - voltage_step_mv)
+                v_end = min(max_voltage_mv, cvolt + voltage_step_mv)
 
                 for f in range(f_start, f_end + 1, micro_f_step):
                     for v in range(v_start, v_end + 1, micro_v_step):
