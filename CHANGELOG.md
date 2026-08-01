@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.3] — 2026-08-01
+
+### Fixed
+
+- **Automatic Benchmark Profile Auto-Saving (`backend/benchmark.py`).** Added automatic profile persistence for microtuned benchmark runs upon sweep completion directly into `guardian_profiles`, preventing lost profile updates if browser windows are refreshed or closed.
+- **Frontend Profile Acknowledgment Fallbacks (`BenchmarkTab.tsx`).** Updated `handleAcknowledge` to use candidate fallback values (`displayEffFreq`, `displayHashFreq`, `displayQuietFreq`), guaranteeing microtuned frequencies are sent to the profile save API even if `latestRun` fields are incomplete.
+- **Network Discovery Probe Error Fix (`backend/miners/nmaxe.py` & `backend/discovery.py`).** Added `probe()` method alias on `NmaxeDriver` and wrapped all driver probes in `try...except` during subnet scans, resolving `AttributeError: 'NmaxeDriver' object has no attribute 'fetch_probe'` and restoring network scanning.
+
 ## [1.38.2] — 2026-07-31
 
 ### Added

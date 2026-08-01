@@ -90,6 +90,10 @@ class NmaxeDriver(BitaxeDriver):
             return {}
         return {}
 
+    async def probe(self) -> dict[str, Any]:
+        """Alias for fetch_probe() to support probe() method call conventions."""
+        return await self.fetch_probe()
+
     def _parse(self, data: dict[str, Any]) -> MinerSample:
         power = data.get("power") if isinstance(data.get("power"), dict) else {}
         temps = data.get("temps") if isinstance(data.get("temps"), dict) else {}

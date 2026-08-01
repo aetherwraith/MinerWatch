@@ -601,6 +601,49 @@ async def _run_benchmark_sweep(
                 if quiet_cands:
                     best_quiet = max(quiet_cands, key=lambda s: s["hashrate_ths"] or 0.0)
 
+        # Auto-save microtuned benchmark profiles to guardian_profiles table
+        if best_eff and best_eff.get("freq_mhz") and best_eff.get("voltage_mv"):
+            try:
+                profiles = await db.get_miner_guardian_profiles(miner_id)
+                existing = next((p for p in profiles if p["name"] == "Max Efficiency (Benchmark)"), None)
+                await db.save_guardian_profile(miner_id, {
+                    "id": existing["id"] if existing else None,
+                    "name": "Max Efficiency (Benchmark)",
+                    "max_freq_mhz": best_eff["freq_mhz"],
+                    "voltage_mv": best_eff["voltage_mv"],
+                    "is_benchmark": 1,
+                })
+            except Exception as e:
+                logger.warning("Failed auto-saving Max Efficiency profile for miner #%d: %s", miner_id, e)
+
+        if best_hash and best_hash.get("freq_mhz") and best_hash.get("voltage_mv"):
+            try:
+                profiles = await db.get_miner_guardian_profiles(miner_id)
+                existing = next((p for p in profiles if p["name"] == "Max Hashrate (Benchmark)"), None)
+                await db.save_guardian_profile(miner_id, {
+                    "id": existing["id"] if existing else None,
+                    "name": "Max Hashrate (Benchmark)",
+                    "max_freq_mhz": best_hash["freq_mhz"],
+                    "voltage_mv": best_hash["voltage_mv"],
+                    "is_benchmark": 1,
+                })
+            except Exception as e:
+                logger.warning("Failed auto-saving Max Hashrate profile for miner #%d: %s", miner_id, e)
+
+        if best_quiet and best_quiet.get("freq_mhz") and best_quiet.get("voltage_mv"):
+            try:
+                profiles = await db.get_miner_guardian_profiles(miner_id)
+                existing = next((p for p in profiles if p["name"] == "Best Quiet (Benchmark)"), None)
+                await db.save_guardian_profile(miner_id, {
+                    "id": existing["id"] if existing else None,
+                    "name": "Best Quiet (Benchmark)",
+                    "max_freq_mhz": best_quiet["freq_mhz"],
+                    "voltage_mv": best_quiet["voltage_mv"],
+                    "is_benchmark": 1,
+                })
+            except Exception as e:
+                logger.warning("Failed auto-saving Best Quiet profile for miner #%d: %s", miner_id, e)
+
         status_str = "completed" if not _abort_flags.get(miner_id) else "aborted"
         await db.update_miner_benchmark(
             benchmark_id,

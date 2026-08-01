@@ -356,20 +356,32 @@ async def _identify_from_ports(host: str, ports: list[int]) -> dict | None:
 
     Tries the AxeOS REST identity first (port 80), then the cgminer
     family (port 4028). Returns the discovery dict
-    (``{family, host, port, mac, model, name}``) or ``None`` when no
+    ({family, host, port, mac, model, name}) or None when no
     driver could identify the host. Shared by both the subnet
-    :func:`scan_network` and the single-host :func:`identify_host`.
+    scan_network and the single-host identify_host.
     """
     info = None
     if PORT_BITAXE in ports:
         # NMAxe first: it shares port 80 with Bitaxe but needs a different
         # parser, and an "NMQAxe++" would be mis-claimed by _identify_bitaxe's
-        # "qaxe" → nerdoctaxe heuristic if that ran first.
-        info = await _identify_nmaxe(host)
+        # "qaxe" -> nerdoctaxe heuristic if that ran first.
+        try:
+            info = await _identify_nmaxe(host)
+        except Exception as e:
+            log.warning("Discovery error probing NMAxe on %s: %s", host, e)
+            info = None
         if not info:
-            info = await _identify_bitaxe(host)
+            try:
+                info = await _identify_bitaxe(host)
+            except Exception as e:
+                log.warning("Discovery error probing Bitaxe on %s: %s", host, e)
+                info = None
     if not info and PORT_CGMINER in ports:
-        info = await _identify_cgminer(host)
+        try:
+            info = await _identify_cgminer(host)
+        except Exception as e:
+            log.warning("Discovery error probing CGMiner on %s: %s", host, e)
+            info = None
     return info
 
 

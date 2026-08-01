@@ -287,31 +287,37 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
 
     const profilesToSave: BenchmarkProfileToSave[] = [];
 
-    if (saveEff && latestRun.best_eff_freq && latestRun.best_eff_volt) {
+    const effFreq = latestRun.best_eff_freq ?? displayEffFreq;
+    const effVolt = latestRun.best_eff_volt ?? displayEffVolt;
+    if (saveEff && effFreq && effVolt) {
       profilesToSave.push({
         name: 'Max Efficiency (Benchmark)',
-        max_freq_mhz: latestRun.best_eff_freq,
-        voltage_mv: latestRun.best_eff_volt,
+        max_freq_mhz: effFreq,
+        voltage_mv: effVolt,
         fan_mode: latestRun.fan_mode || 'firmware',
         existing_id: effExisting?.id ?? null,
       });
     }
 
-    if (saveHash && latestRun.best_hash_freq && latestRun.best_hash_volt) {
+    const hashFreq = latestRun.best_hash_freq ?? displayHashFreq;
+    const hashVolt = latestRun.best_hash_volt ?? displayHashVolt;
+    if (saveHash && hashFreq && hashVolt) {
       profilesToSave.push({
         name: 'Max Hashrate (Benchmark)',
-        max_freq_mhz: latestRun.best_hash_freq,
-        voltage_mv: latestRun.best_hash_volt,
+        max_freq_mhz: hashFreq,
+        voltage_mv: hashVolt,
         fan_mode: latestRun.fan_mode || 'firmware',
         existing_id: hashExisting?.id ?? null,
       });
     }
 
-    if (saveQuiet && latestRun.best_quiet_freq && latestRun.best_quiet_volt) {
+    const quietFreq = latestRun.best_quiet_freq ?? displayQuietFreq;
+    const quietVolt = latestRun.best_quiet_volt ?? displayQuietVolt;
+    if (saveQuiet && quietFreq && quietVolt) {
       profilesToSave.push({
         name: 'Best Quiet (Benchmark)',
-        max_freq_mhz: latestRun.best_quiet_freq,
-        voltage_mv: latestRun.best_quiet_volt,
+        max_freq_mhz: quietFreq,
+        voltage_mv: quietVolt,
         fan_mode: latestRun.fan_mode || 'firmware',
         existing_id: quietExisting?.id ?? null,
       });
