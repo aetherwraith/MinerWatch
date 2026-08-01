@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.5] — 2026-08-01
+
+### Added & Fixed
+
+- **Microtuning Graph & Table Color Visualizers (`BenchmarkTab.tsx`).** Added distinct color coding to distinguish Phase 2 microtuning steps on the telemetry graph (Purple/Violet efficiency bars & Fuchsia hashrate dots vs Emerald Green & Sky Blue coarse steps). Added Phase 2 badges in chart tooltips and purple left border/tint accents on table rows for microtuning steps.
+
 ## [1.38.4] — 2026-08-01
 
 ### Fixed

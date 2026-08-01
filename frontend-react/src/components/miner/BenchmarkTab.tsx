@@ -4,6 +4,7 @@ import {
   ComposedChart,
   Line,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -979,6 +980,16 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                 <CardDescription>
                   Efficiency (J/TH) vs Hashrate (TH/s) across sampled frequency and voltage states
                 </CardDescription>
+                <div className="flex items-center gap-3 text-xs pt-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded bg-emerald-500 inline-block" />
+                    <span className="text-muted-foreground text-[11px]">Phase 1: Coarse Steps</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded bg-purple-500 inline-block" />
+                    <span className="text-purple-300 font-medium text-[11px]">Phase 2: Microtuning Steps</span>
+                  </div>
+                </div>
               </div>
               <Badge variant="outline" className="font-mono text-xs">
                 {chartData.length} Sample Points {running && '(Sampling...)'}
@@ -1018,7 +1029,14 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                         return (
                           <div className="rounded-lg border border-border/80 bg-slate-950/95 p-3 text-xs shadow-xl backdrop-blur space-y-1.5 min-w-[210px]">
                             <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-1.5">
-                              <span className="font-semibold text-slate-100">{data.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-100">{data.name}</span>
+                                {data.isMicro && (
+                                  <span className="rounded bg-purple-500/25 px-1.5 py-0.5 text-[10px] font-semibold text-purple-300 border border-purple-500/40">
+                                    Microtune
+                                  </span>
+                                )}
+                              </div>
                               <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${data.stable ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/15 text-red-400 border border-red-500/30'}`}>
                                 {data.stable ? 'Stable' : 'Unstable'}
                               </span>
@@ -1074,8 +1092,35 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                       }}
                     />
                     <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Bar yAxisId="left" dataKey="efficiency" name="Efficiency (J/TH)" fill="#10b981" radius={[4, 4, 0, 0]} opacity={0.85} />
-                    <Line yAxisId="right" type="monotone" dataKey="hashrate" name="Hashrate (TH/s)" stroke="#38bdf8" strokeWidth={2.5} dot={{ r: 4 }} />
+                    <Bar yAxisId="left" dataKey="efficiency" name="Efficiency (J/TH)" radius={[4, 4, 0, 0]} opacity={0.85}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.isMicro ? '#c084fc' : '#10b981'} />
+                      ))}
+                    </Bar>
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="hashrate"
+                      name="Hashrate (TH/s)"
+                      stroke="#38bdf8"
+                      strokeWidth={2.5}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        if (!cx || !cy) return <circle key={props.key} cx={0} cy={0} r={0} />;
+                        const isMicro = payload?.isMicro;
+                        return (
+                          <circle
+                            key={props.key}
+                            cx={cx}
+                            cy={cy}
+                            r={isMicro ? 5 : 4}
+                            fill={isMicro ? '#e879f9' : '#38bdf8'}
+                            stroke={isMicro ? '#a855f7' : '#0284c7'}
+                            strokeWidth={1.5}
+                          />
+                        );
+                      }}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1109,12 +1154,15 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {samples.map((s, i) => (
-                      <tr key={s.id || i} className="hover:bg-muted/20">
+                      <tr
+                        key={s.id || i}
+                        className={`hover:bg-muted/20 ${i >= coarseTotal ? 'bg-purple-950/25 border-l-2 border-l-purple-500' : ''}`}
+                      >
                         <td className="p-2 pl-3 font-mono text-muted-foreground">
                           <span className="inline-flex items-center gap-1.5">
                             <span>{i + 1}</span>
                             {i >= coarseTotal && (
-                              <Badge variant="outline" className="text-[9px] bg-purple-500/15 text-purple-300 border-purple-500/30 px-1 py-0 font-sans">
+                              <Badge variant="outline" className="text-[9px] bg-purple-500/20 text-purple-300 border-purple-500/40 px-1 py-0 font-sans">
                                 Micro
                               </Badge>
                             )}
