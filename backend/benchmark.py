@@ -580,69 +580,31 @@ async def _run_benchmark_sweep(
                     if m_thermal_trigger or (m_aborted and m_abort_reason and "Thermal" in m_abort_reason):
                         await _thermal_cooling_pause(miner_id, benchmark_id, max_chip_temp, max_vr_temp)
 
-        # Sweep finished — calculate best profiles
+        # Sweep finished — calculate best candidate profiles across all stable samples (coarse + microtuning)
         best_eff = None
         best_hash = None
         best_quiet = None
 
         if stable_samples:
             # Max Efficiency = lowest J/TH
-            best_eff = min(stable_samples, key=lambda s: s["efficiency_j_th"] or 9999.0)
-            # Max Hashrate = highest TH/s
-            best_hash = max(stable_samples, key=lambda s: s["hashrate_ths"] or 0.0)
+            valid_eff_samples = [s for s in stable_samples if s.get("efficiency_j_th") is not None and s["efficiency_j_th"] > 0]
+            if valid_eff_samples:
+                best_eff = min(valid_eff_samples, key=lambda s: s["efficiency_j_th"])
 
-            # Best Quiet = max performance (highest TH/s) candidate where settled fan speed <= quiet_fan_max_pct
+            # Max Hashrate = highest TH/s
+            valid_hash_samples = [s for s in stable_samples if s.get("hashrate_ths") is not None and s["hashrate_ths"] > 0]
+            if valid_hash_samples:
+                best_hash = max(valid_hash_samples, key=lambda s: s["hashrate_ths"])
+
+            # Best Quiet = max performance candidate where settled fan speed <= quiet_fan_max_pct
             quiet_max_fan = config.get("quiet_fan_max_pct")
-            if quiet_max_fan is not None:
+            if quiet_max_fan is not None and valid_hash_samples:
                 quiet_cands = [
-                    s for s in stable_samples
+                    s for s in valid_hash_samples
                     if s.get("fan_pct") is not None and s["fan_pct"] <= float(quiet_max_fan)
                 ]
                 if quiet_cands:
-                    best_quiet = max(quiet_cands, key=lambda s: s["hashrate_ths"] or 0.0)
-
-        # Auto-save microtuned benchmark profiles to guardian_profiles table
-        if best_eff and best_eff.get("freq_mhz") and best_eff.get("voltage_mv"):
-            try:
-                profiles = await db.get_miner_guardian_profiles(miner_id)
-                existing = next((p for p in profiles if p["name"] == "Max Efficiency (Benchmark)"), None)
-                await db.save_guardian_profile(miner_id, {
-                    "id": existing["id"] if existing else None,
-                    "name": "Max Efficiency (Benchmark)",
-                    "max_freq_mhz": best_eff["freq_mhz"],
-                    "voltage_mv": best_eff["voltage_mv"],
-                    "is_benchmark": 1,
-                })
-            except Exception as e:
-                logger.warning("Failed auto-saving Max Efficiency profile for miner #%d: %s", miner_id, e)
-
-        if best_hash and best_hash.get("freq_mhz") and best_hash.get("voltage_mv"):
-            try:
-                profiles = await db.get_miner_guardian_profiles(miner_id)
-                existing = next((p for p in profiles if p["name"] == "Max Hashrate (Benchmark)"), None)
-                await db.save_guardian_profile(miner_id, {
-                    "id": existing["id"] if existing else None,
-                    "name": "Max Hashrate (Benchmark)",
-                    "max_freq_mhz": best_hash["freq_mhz"],
-                    "voltage_mv": best_hash["voltage_mv"],
-                    "is_benchmark": 1,
-                })
-            except Exception as e:
-                logger.warning("Failed auto-saving Max Hashrate profile for miner #%d: %s", miner_id, e)
-
-        if best_quiet and best_quiet.get("freq_mhz") and best_quiet.get("voltage_mv"):
-            try:
-                profiles = await db.get_miner_guardian_profiles(miner_id)
-                existing = next((p for p in profiles if p["name"] == "Best Quiet (Benchmark)"), None)
-                await db.save_guardian_profile(miner_id, {
-                    "id": existing["id"] if existing else None,
-                    "name": "Best Quiet (Benchmark)",
-                    "max_freq_mhz": best_quiet["freq_mhz"],
-                    "voltage_mv": best_quiet["voltage_mv"],
-                    "is_benchmark": 1,
-                })
-            except Exception as e:
-                logger.warning("Failed auto-saving Best Quiet profile for miner #%d: %s", miner_id, e)
+                    best_quiet = max(quiet_cands, key=lambda s: s["hashrate_ths"])
 
         status_str = "completed" if not _abort_flags.get(miner_id) else "aborted"
         await db.update_miner_benchmark(

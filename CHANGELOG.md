@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.4] — 2026-08-01
+
+### Fixed
+
+- **Explicit User Review for Benchmark Profiles (`backend/benchmark.py`).** Removed backend automatic profile saving to `guardian_profiles`. After microtuning or coarse benchmark sweeps complete, candidate profiles are recorded in the benchmark run record and presented on the frontend action panel for user review and explicit acceptance/acknowledgment before any profiles are written.
+
 ## [1.38.3] — 2026-08-01
 
 ### Fixed
