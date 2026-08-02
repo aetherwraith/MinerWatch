@@ -375,15 +375,15 @@ async def _run_benchmark_sweep(
                     total_cores = int(small_cores) * int(asic_count)
                     expected_ths = (freq * total_cores) / 1_000_000.0
 
-            valid_hashrate = True
+            m_valid_hashrate = True
             if expected_ths and expected_ths > 0:
-                valid_hashrate = (hr >= expected_ths * 0.85)
+                m_valid_hashrate = (hr >= expected_ths * 0.50)
 
-            if not valid_hashrate and not abort_reason:
-                abort_reason = f"Hashrate {hr:.2f} TH/s below 85% theoretical ({expected_ths * 0.85:.2f} TH/s)"
+            if not m_valid_hashrate and not abort_reason:
+                abort_reason = f"Hashrate {hr:.2f} TH/s below 50% theoretical ({expected_ths * 0.50:.2f} TH/s)"
 
             j_th = (power / hr) if (hr > 0 and power > 0) else None
-            is_stable = not dwell_aborted and effective_err_rate <= max_error_rate_pct and hr > 0 and valid_hashrate
+            is_stable = not dwell_aborted and effective_err_rate <= max_error_rate_pct and hr > 0 and m_valid_hashrate
 
             sample_record = {
                 "freq_mhz": freq,
@@ -413,186 +413,200 @@ async def _run_benchmark_sweep(
         micro_f_step = int(config.get("micro_freq_step_mhz", 5))
         micro_v_step = int(config.get("micro_volt_step_mv", 10))
 
-        if enable_micro and stable_samples and not _abort_flags.get(miner_id):
-            best_eff_cand = min(stable_samples, key=lambda s: s["efficiency_j_th"] or 9999.0)
-            best_hash_cand = max(stable_samples, key=lambda s: s["hashrate_ths"] or 0.0)
+        # Candidate pool for microtuning: prefer strictly stable samples, but fall back to non-thermal-aborted samples with valid hashrate
+        coarse_candidate_pool = stable_samples if stable_samples else [
+            s for s in samples
+            if s.get("hashrate_ths") and s["hashrate_ths"] > 0 and not (s.get("abort_reason") or "").startswith("Thermal")
+        ]
 
-            sampled_pairs = {(s["freq_mhz"], s["voltage_mv"]) for s in stable_samples}
-            micro_candidates: set[tuple[int, int]] = set()
+        if enable_micro and coarse_candidate_pool and not _abort_flags.get(miner_id):
+            valid_eff_pool = [s for s in coarse_candidate_pool if s.get("efficiency_j_th") and s["efficiency_j_th"] > 0]
+            valid_hash_pool = [s for s in coarse_candidate_pool if s.get("hashrate_ths") and s["hashrate_ths"] > 0]
 
-            for cand in (best_eff_cand, best_hash_cand):
-                cfreq = cand["freq_mhz"]
-                cvolt = cand["voltage_mv"]
-                f_start = max(min_freq_mhz, cfreq - freq_step_mhz)
-                f_end = min(max_freq_mhz, cfreq + freq_step_mhz)
-                v_start = max(min_voltage_mv, cvolt - voltage_step_mv)
-                v_end = min(max_voltage_mv, cvolt + voltage_step_mv)
+            if valid_eff_pool and valid_hash_pool:
+                best_eff_cand = min(valid_eff_pool, key=lambda s: s["efficiency_j_th"])
+                best_hash_cand = max(valid_hash_pool, key=lambda s: s["hashrate_ths"])
 
-                for f in range(f_start, f_end + 1, micro_f_step):
-                    for v in range(v_start, v_end + 1, micro_v_step):
-                        if (f, v) not in sampled_pairs:
-                            micro_candidates.add((f, v))
+                sampled_pairs = {(s["freq_mhz"], s["voltage_mv"]) for s in samples}
+                micro_candidates: set[tuple[int, int]] = set()
 
-            if micro_candidates:
-                total_micro = len(micro_candidates)
-                await db.update_miner_benchmark(
-                    benchmark_id,
-                    sweep_phase="microtuning",
-                    micro_current_step=0,
-                    micro_total_steps=total_micro,
-                )
-                logger.info("Starting Phase 2 microtuning sweep with %d fine candidate points on miner #%d", total_micro, miner_id)
+                for cand in (best_eff_cand, best_hash_cand):
+                    cfreq = cand["freq_mhz"]
+                    cvolt = cand["voltage_mv"]
+                    f_start = max(min_freq_mhz, cfreq - freq_step_mhz)
+                    f_end = min(max_freq_mhz, cfreq + freq_step_mhz)
+                    v_start = max(min_voltage_mv, cvolt - voltage_step_mv)
+                    v_end = min(max_voltage_mv, cvolt + voltage_step_mv)
 
-                for m_idx, (f, v) in enumerate(sorted(list(micro_candidates))):
-                    if _abort_flags.get(miner_id):
-                        break
+                    for f in range(f_start, f_end + 1, micro_f_step):
+                        for v in range(v_start, v_end + 1, micro_v_step):
+                            if (f, v) not in sampled_pairs:
+                                micro_candidates.add((f, v))
 
+                if micro_candidates:
+                    total_micro = len(micro_candidates)
                     await db.update_miner_benchmark(
                         benchmark_id,
                         sweep_phase="microtuning",
-                        micro_current_step=m_idx + 1,
+                        micro_current_step=0,
                         micro_total_steps=total_micro,
                     )
+                    logger.info("Starting Phase 2 microtuning sweep with %d fine candidate points on miner #%d", total_micro, miner_id)
 
-                    try:
-                        await _apply_freq_and_volt(miner_id, f, v)
-                    except Exception as e:
-                        logger.warning("Error microtuning freq=%d volt=%d: %s", f, v, e)
-
-                    m_dwell_samples: list[dict[str, Any]] = []
-                    m_aborted = False
-                    m_thermal_trigger = False
-                    m_abort_reason = None
-
-                    for m_sec in range(1, dwell_time_s + 1):
+                    for m_idx, (f, v) in enumerate(sorted(list(micro_candidates))):
                         if _abort_flags.get(miner_id):
-                            m_aborted = True
                             break
-                        await asyncio.sleep(1)
-                        latest = await _get_latest_metrics(miner_id)
-                        if latest:
-                            m_dwell_samples.append(latest)
-                            chip_t = latest.get("temp_chip_c")
-                            vr_t = latest.get("temp_vr_c")
-                            if (chip_t and chip_t >= max_chip_temp + 2.0) or (vr_t and vr_t >= max_vr_temp + 2.0):
+
+                        await db.update_miner_benchmark(
+                            benchmark_id,
+                            sweep_phase="microtuning",
+                            micro_current_step=m_idx + 1,
+                            micro_total_steps=total_micro,
+                        )
+
+                        try:
+                            await _apply_freq_and_volt(miner_id, f, v)
+                        except Exception as e:
+                            logger.warning("Error microtuning freq=%d volt=%d: %s", f, v, e)
+
+                        m_dwell_samples: list[dict[str, Any]] = []
+                        m_aborted = False
+                        m_thermal_trigger = False
+                        m_abort_reason = None
+
+                        for m_sec in range(1, dwell_time_s + 1):
+                            if _abort_flags.get(miner_id):
                                 m_aborted = True
-                                m_thermal_trigger = True
-                                m_abort_reason = f"Thermal safety trigger (Chip: {chip_t}°C, VR: {vr_t}°C)"
                                 break
-
-                            # Early Dwell Skip for Long Dwell Periods (dwell_time_s > early_skip_sec)
-                            if dwell_time_s > early_skip_sec and m_sec >= early_skip_sec and len(m_dwell_samples) >= 3:
-                                m_recent = m_dwell_samples[-5:]
-                                def _mr_avg(k: str) -> float | None:
-                                    v_list = [s[k] for s in m_recent if s.get(k) is not None]
-                                    return (sum(v_list) / len(v_list)) if v_list else None
-
-                                cur_hr = _mr_avg("hashrate_ths") or 0.0
-                                cur_hw_err = _mr_avg("error_pct") or 0.0
-                                cur_rej_pct = _mr_avg("reject_pct") or 0.0
-                                cur_eff_err = max(cur_hw_err, cur_rej_pct)
-                                cur_chip_t = _mr_avg("temp_chip_c")
-                                cur_vr_t = _mr_avg("temp_vr_c")
-
-                                exp_hr = None
-                                if miner:
-                                    sc = miner.get("small_core_count")
-                                    ac = miner.get("asic_count")
-                                    if sc and ac:
-                                        exp_hr = (f * sc * ac) / 1_000_000.0
-
-                                severe_errors = cur_eff_err >= max(5.0, max_error_rate_pct * 3.5)
-                                severe_hr_deficit = exp_hr is not None and exp_hr > 0 and cur_hr < (exp_hr * 0.5)
-                                zero_hashrate = cur_hr == 0.0
-                                temp_out_of_bounds = (
-                                    (cur_chip_t is not None and cur_chip_t > max_chip_temp) or
-                                    (cur_vr_t is not None and cur_vr_t > max_vr_temp)
-                                )
-
-                                if severe_errors or severe_hr_deficit or zero_hashrate or temp_out_of_bounds:
+                            await asyncio.sleep(1)
+                            latest = await _get_latest_metrics(miner_id)
+                            if latest:
+                                m_dwell_samples.append(latest)
+                                chip_t = latest.get("temp_chip_c")
+                                vr_t = latest.get("temp_vr_c")
+                                if (chip_t and chip_t >= max_chip_temp + 2.0) or (vr_t and vr_t >= max_vr_temp + 2.0):
                                     m_aborted = True
-                                    if temp_out_of_bounds:
-                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Temperature out of bounds (Chip: {cur_chip_t:.1f}°C > {max_chip_temp:.1f}°C, VR: {cur_vr_t:.1f}°C > {max_vr_temp:.1f}°C)"
-                                    elif severe_errors:
-                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Severe error rate ({cur_eff_err:.1f}%)"
-                                    elif severe_hr_deficit:
-                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Hashrate {cur_hr:.2f} TH/s < 50% theoretical ({exp_hr:.2f} TH/s)"
-                                    else:
-                                        m_abort_reason = f"Early dwell skip ({m_sec}s): Zero hashrate output"
-
-                                    logger.info("Microtuning early dwell skip on miner #%d step (%d MHz @ %d mV): %s", miner_id, f, v, m_abort_reason)
+                                    m_thermal_trigger = True
+                                    m_abort_reason = f"Thermal safety trigger (Chip: {chip_t}°C, VR: {vr_t}°C)"
                                     break
 
-                    if m_aborted and _abort_flags.get(miner_id):
-                        break
+                                # Early Dwell Skip for Long Dwell Periods (dwell_time_s > early_skip_sec)
+                                if dwell_time_s > early_skip_sec and m_sec >= early_skip_sec and len(m_dwell_samples) >= 3:
+                                    m_recent = m_dwell_samples[-5:]
+                                    def _mr_avg(k: str) -> float | None:
+                                        v_list = [s[k] for s in m_recent if s.get(k) is not None]
+                                        return (sum(v_list) / len(v_list)) if v_list else None
 
-                    window_size = max(5, dwell_time_s // 3)
-                    m_window = m_dwell_samples[-window_size:] if m_dwell_samples else []
-                    def _m_avg(key: str) -> float | None:
-                        vals = [s[key] for s in m_window if s.get(key) is not None]
-                        return (sum(vals) / len(vals)) if vals else None
+                                    cur_hr = _mr_avg("hashrate_ths") or 0.0
+                                    cur_hw_err = _mr_avg("error_pct") or 0.0
+                                    cur_rej_pct = _mr_avg("reject_pct") or 0.0
+                                    cur_eff_err = max(cur_hw_err, cur_rej_pct)
+                                    cur_chip_t = _mr_avg("temp_chip_c")
+                                    cur_vr_t = _mr_avg("temp_vr_c")
 
-                    hr = _m_avg("hashrate_ths") or 0.0
-                    power = _m_avg("power_w") or 0.0
-                    chip_t = _m_avg("temp_chip_c")
-                    vr_t = _m_avg("temp_vr_c")
-                    m_fan_t = _m_avg("fan_pct")
-                    hw_err = _m_avg("error_pct") or 0.0
-                    rej_pct = _m_avg("reject_pct") or 0.0
-                    eff_err = max(hw_err, rej_pct)
-                    j_th = (power / hr) if (hr > 0 and power > 0) else None
+                                    exp_hr = None
+                                    if miner:
+                                        sc = miner.get("small_core_count")
+                                        ac = miner.get("asic_count")
+                                        if sc and ac:
+                                            exp_hr = (f * sc * ac) / 1_000_000.0
 
-                    # Guardian expected theoretical hashrate check for microtuning
-                    m_expected_ths = None
-                    if miner:
-                        small_cores = miner.get("small_core_count")
-                        asic_count = miner.get("asic_count")
-                        if small_cores and asic_count:
-                            total_cores = int(small_cores) * int(asic_count)
-                            m_expected_ths = (f * total_cores) / 1_000_000.0
+                                    severe_errors = cur_eff_err >= max(5.0, max_error_rate_pct * 3.5)
+                                    severe_hr_deficit = exp_hr is not None and exp_hr > 0 and cur_hr < (exp_hr * 0.5)
+                                    zero_hashrate = cur_hr == 0.0
+                                    temp_out_of_bounds = (
+                                        (cur_chip_t is not None and cur_chip_t > max_chip_temp) or
+                                        (cur_vr_t is not None and cur_vr_t > max_vr_temp)
+                                    )
 
-                    m_valid_hashrate = True
-                    if m_expected_ths and m_expected_ths > 0:
-                        m_valid_hashrate = (hr >= m_expected_ths * 0.85)
+                                    if severe_errors or severe_hr_deficit or zero_hashrate or temp_out_of_bounds:
+                                        m_aborted = True
+                                        if temp_out_of_bounds:
+                                            m_abort_reason = f"Early dwell skip ({m_sec}s): Temperature out of bounds (Chip: {cur_chip_t:.1f}°C > {max_chip_temp:.1f}°C, VR: {cur_vr_t:.1f}°C > {max_vr_temp:.1f}°C)"
+                                        elif severe_errors:
+                                            m_abort_reason = f"Early dwell skip ({m_sec}s): Severe error rate ({cur_eff_err:.1f}%)"
+                                        elif severe_hr_deficit:
+                                            m_abort_reason = f"Early dwell skip ({m_sec}s): Hashrate {cur_hr:.2f} TH/s < 50% theoretical ({exp_hr:.2f} TH/s)"
+                                        else:
+                                            m_abort_reason = f"Early dwell skip ({m_sec}s): Zero hashrate output"
 
-                    if not m_valid_hashrate and not m_abort_reason:
-                        m_abort_reason = f"Hashrate {hr:.2f} TH/s below 85% theoretical ({m_expected_ths * 0.85:.2f} TH/s)"
+                                        logger.info("Microtuning early dwell skip on miner #%d step (%d MHz @ %d mV): %s", miner_id, f, v, m_abort_reason)
+                                        break
 
-                    is_stable = not m_aborted and eff_err <= max_error_rate_pct and hr > 0 and m_valid_hashrate
+                        if m_aborted and _abort_flags.get(miner_id):
+                            break
 
-                    m_sample = {
-                        "freq_mhz": f,
-                        "voltage_mv": v,
-                        "hashrate_ths": round(hr, 3) if hr > 0 else None,
-                        "power_w": round(power, 1) if power > 0 else None,
-                        "efficiency_j_th": round(j_th, 2) if j_th is not None else None,
-                        "chip_temp_c": round(chip_t, 1) if chip_t is not None else None,
-                        "vr_temp_c": round(vr_t, 1) if vr_t is not None else None,
-                        "fan_pct": round(m_fan_t, 1) if m_fan_t is not None else None,
-                        "error_rate_pct": round(eff_err, 2),
-                        "stable": is_stable,
-                        "abort_reason": m_abort_reason if not is_stable else None,
-                    }
-                    await db.add_benchmark_sample(benchmark_id, miner_id, m_sample)
-                    if is_stable and j_th is not None:
-                        stable_samples.append(m_sample)
+                        window_size = max(5, dwell_time_s // 3)
+                        m_window = m_dwell_samples[-window_size:] if m_dwell_samples else []
+                        def _m_avg(key: str) -> float | None:
+                            vals = [s[key] for s in m_window if s.get(key) is not None]
+                            return (sum(vals) / len(vals)) if vals else None
 
-                    if m_thermal_trigger or (m_aborted and m_abort_reason and "Thermal" in m_abort_reason):
-                        await _thermal_cooling_pause(miner_id, benchmark_id, max_chip_temp, max_vr_temp)
+                        hr = _m_avg("hashrate_ths") or 0.0
+                        power = _m_avg("power_w") or 0.0
+                        chip_t = _m_avg("temp_chip_c")
+                        vr_t = _m_avg("temp_vr_c")
+                        m_fan_t = _m_avg("fan_pct")
+                        hw_err = _m_avg("error_pct") or 0.0
+                        rej_pct = _m_avg("reject_pct") or 0.0
+                        eff_err = max(hw_err, rej_pct)
+                        j_th = (power / hr) if (hr > 0 and power > 0) else None
 
-        # Sweep finished — calculate best candidate profiles across all stable samples (coarse + microtuning)
+                        m_expected_ths = None
+                        if miner:
+                            small_cores = miner.get("small_core_count")
+                            asic_count = miner.get("asic_count")
+                            if small_cores and asic_count:
+                                total_cores = int(small_cores) * int(asic_count)
+                                m_expected_ths = (f * total_cores) / 1_000_000.0
+
+                        m_valid_hashrate = True
+                        if m_expected_ths and m_expected_ths > 0:
+                            m_valid_hashrate = (hr >= m_expected_ths * 0.50)
+
+                        if not m_valid_hashrate and not m_abort_reason:
+                            m_abort_reason = f"Hashrate {hr:.2f} TH/s below 50% theoretical ({m_expected_ths * 0.50:.2f} TH/s)"
+
+                        is_stable = not m_aborted and eff_err <= max_error_rate_pct and hr > 0 and m_valid_hashrate
+
+                        m_sample = {
+                            "freq_mhz": f,
+                            "voltage_mv": v,
+                            "hashrate_ths": round(hr, 3) if hr > 0 else None,
+                            "power_w": round(power, 1) if power > 0 else None,
+                            "efficiency_j_th": round(j_th, 2) if j_th is not None else None,
+                            "chip_temp_c": round(chip_t, 1) if chip_t is not None else None,
+                            "vr_temp_c": round(vr_t, 1) if vr_t is not None else None,
+                            "fan_pct": round(m_fan_t, 1) if m_fan_t is not None else None,
+                            "error_rate_pct": round(eff_err, 2),
+                            "stable": is_stable,
+                            "abort_reason": m_abort_reason if not is_stable else None,
+                        }
+                        await db.add_benchmark_sample(benchmark_id, miner_id, m_sample)
+                        if is_stable and j_th is not None:
+                            stable_samples.append(m_sample)
+
+                        if m_thermal_trigger or (m_aborted and m_abort_reason and "Thermal" in m_abort_reason):
+                            await _thermal_cooling_pause(miner_id, benchmark_id, max_chip_temp, max_vr_temp)
+
+        # Sweep finished — calculate best candidate profiles across candidate pool (coarse + microtuning)
+        final_candidate_pool = stable_samples if stable_samples else [
+            s for s in samples
+            if s.get("hashrate_ths") and s["hashrate_ths"] > 0 and not (s.get("abort_reason") or "").startswith("Thermal")
+        ]
+
         best_eff = None
         best_hash = None
         best_quiet = None
 
-        if stable_samples:
+        if final_candidate_pool:
             # Max Efficiency = lowest J/TH
-            valid_eff_samples = [s for s in stable_samples if s.get("efficiency_j_th") is not None and s["efficiency_j_th"] > 0]
+            valid_eff_samples = [s for s in final_candidate_pool if s.get("efficiency_j_th") is not None and s["efficiency_j_th"] > 0]
             if valid_eff_samples:
                 best_eff = min(valid_eff_samples, key=lambda s: s["efficiency_j_th"])
 
             # Max Hashrate = highest TH/s
-            valid_hash_samples = [s for s in stable_samples if s.get("hashrate_ths") is not None and s["hashrate_ths"] > 0]
+            valid_hash_samples = [s for s in final_candidate_pool if s.get("hashrate_ths") is not None and s["hashrate_ths"] > 0]
             if valid_hash_samples:
                 best_hash = max(valid_hash_samples, key=lambda s: s["hashrate_ths"])
 

@@ -184,32 +184,36 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     }));
   }, [samples, coarseTotal]);
 
-  // Live leading candidates computed from stable samples during run or completed
-  const liveStableSamples = useMemo(() => samples.filter((s) => s.stable), [samples]);
+  // Live leading candidates computed from stable samples during run or completed (with fallback to non-thermal-aborted hashing samples)
+  const liveCandidateSamples = useMemo(() => {
+    const st = samples.filter((s) => s.stable);
+    if (st.length) return st;
+    return samples.filter((s) => (s.hashrate_ths ?? 0) > 0 && !s.abort_reason?.startsWith('Thermal'));
+  }, [samples]);
 
   const liveBestEff = useMemo(() => {
-    if (!liveStableSamples.length) return null;
-    return liveStableSamples.reduce((best, cur) => {
+    if (!liveCandidateSamples.length) return null;
+    return liveCandidateSamples.reduce((best, cur) => {
       if (!cur.efficiency_j_th) return best;
       if (!best || !best.efficiency_j_th || cur.efficiency_j_th < best.efficiency_j_th) return cur;
       return best;
     }, null as (typeof samples)[0] | null);
-  }, [liveStableSamples]);
+  }, [liveCandidateSamples]);
 
   const liveBestHash = useMemo(() => {
-    if (!liveStableSamples.length) return null;
-    return liveStableSamples.reduce((best, cur) => {
+    if (!liveCandidateSamples.length) return null;
+    return liveCandidateSamples.reduce((best, cur) => {
       if (!cur.hashrate_ths) return best;
       if (!best || !best.hashrate_ths || cur.hashrate_ths > best.hashrate_ths) return cur;
       return best;
     }, null as (typeof samples)[0] | null);
-  }, [liveStableSamples]);
+  }, [liveCandidateSamples]);
 
   const liveBestQuiet = useMemo(() => {
     const isAutoFan = latestRun?.fan_mode ? ['firmware', 'minerwatch'].includes(latestRun.fan_mode) : benchFanMode !== 'pin';
-    if (!isAutoFan || !liveStableSamples.length) return null;
+    if (!isAutoFan || !liveCandidateSamples.length) return null;
     const quietLimit = latestRun?.quiet_fan_max_pct ?? quietFanMaxPct ?? 65;
-    const quietCands = liveStableSamples.filter(
+    const quietCands = liveCandidateSamples.filter(
       (s) => s.fan_pct != null && s.fan_pct <= quietLimit && s.hashrate_ths != null
     );
     if (!quietCands.length) return null;
@@ -217,7 +221,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       if (!best || (cur.hashrate_ths ?? 0) > (best.hashrate_ths ?? 0)) return cur;
       return best;
     }, null as (typeof samples)[0] | null);
-  }, [liveStableSamples, latestRun?.fan_mode, latestRun?.quiet_fan_max_pct, benchFanMode, quietFanMaxPct]);
+  }, [liveCandidateSamples, latestRun?.fan_mode, latestRun?.quiet_fan_max_pct, benchFanMode, quietFanMaxPct]);
 
   // Generate planned combinations to determine active target parameters for any step (including step 1!)
   const plannedCombinations = useMemo(() => {

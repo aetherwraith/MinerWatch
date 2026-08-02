@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.6] — 2026-08-02
+
+### Fixed
+
+- **Microtuning Candidate Selection & Fallback Pool (`backend/benchmark.py` & `BenchmarkTab.tsx`).** Adjusted theoretical hashrate sanity floor from 85% to 50% to prevent falsely marking valid steps as unstable during thermal warm-up. Added candidate pool fallback (`final_candidate_pool` & `liveCandidateSamples`), guaranteeing Phase 2 microtuning search space and final candidate review values (`Max Efficiency` / `Max Hashrate`) are generated even if strict stability warnings were triggered on coarse steps.
+
 ## [1.38.5] — 2026-08-01
 
 ### Added & Fixed
