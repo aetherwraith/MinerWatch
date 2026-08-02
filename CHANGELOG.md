@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.2] — 2026-08-02
+
+### Added & Fixed
+
+- **Automated Hourly Benchmark & Telemetry Pruning (`backend/poller.py` & `backend/db.py`).** Wired `prune_old_benchmarks(keep_runs_per_miner=30)` into the recurring hourly background cleanup task alongside tiered telemetry rollups (`metrics_1m`, `metrics_1h`, `ambient_metrics`), ensuring all database historical data is pruned periodically.
+
 ## [1.39.1] — 2026-08-02
 
 ### Added & Refactored

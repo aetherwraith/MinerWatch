@@ -288,12 +288,14 @@ class Poller:
             retention_1m_days=cfg.storage.retention_1m_days,
             retention_1h_days=cfg.storage.retention_1h_days,
         )
+        pruned_benchmarks = await db.prune_old_benchmarks(keep_runs_per_miner=30)
         await db.set_setting("_last_cleanup_ts", str(now))
         total = sum(deleted.values())
-        if total:
+        if total or pruned_benchmarks:
             log.info(
-                "retention cleanup: raw=%d, 1m=%d, 1h=%d (total %d)",
-                deleted["metrics"], deleted["metrics_1m"], deleted["metrics_1h"], total,
+                "retention cleanup: raw=%d, 1m=%d, 1h=%d, benchmarks_pruned=%d (total %d)",
+                deleted.get("metrics", 0), deleted.get("metrics_1m", 0), deleted.get("metrics_1h", 0),
+                pruned_benchmarks, total,
             )
 
 
