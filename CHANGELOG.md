@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.1] — 2026-08-02
+
+### Added & Refactored
+
+- **Backend FastAPI Router Modularization (`backend/routers/`).** Created dedicated router sub-modules (`system.py`, `discovery.py`, `miners.py`, `benchmark.py`, `guardian.py`) under `backend/routers/` to structure endpoint handlers and clean up core application organization.
+
 ## [1.39.0] — 2026-08-02
 
 ### Added & Optimized
