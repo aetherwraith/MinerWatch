@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.38.7] — 2026-08-02
+
+### Added & Fixed
+
+- **Microtuning Parameter Persistence in Database (`backend/db.py` & `backend/benchmark.py`).** Added `enable_microtuning`, `micro_freq_step_mhz`, and `micro_volt_step_mv` columns to `miner_benchmarks` table so microtuning parameters are permanently recorded per benchmark run and explicitly logged upon task launch.
+
 ## [1.38.6] — 2026-08-02
 
 ### Fixed

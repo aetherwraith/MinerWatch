@@ -601,6 +601,9 @@ def _init_db_sync() -> None:
             "ALTER TABLE miner_benchmarks ADD COLUMN sweep_phase TEXT DEFAULT 'coarse'",
             "ALTER TABLE miner_benchmarks ADD COLUMN micro_current_step INTEGER DEFAULT 0",
             "ALTER TABLE miner_benchmarks ADD COLUMN micro_total_steps INTEGER DEFAULT 0",
+            "ALTER TABLE miner_benchmarks ADD COLUMN enable_microtuning INTEGER DEFAULT 0",
+            "ALTER TABLE miner_benchmarks ADD COLUMN micro_freq_step_mhz INTEGER DEFAULT 5",
+            "ALTER TABLE miner_benchmarks ADD COLUMN micro_volt_step_mv INTEGER DEFAULT 10",
         ]:
             try:
                 conn.execute(column_def)
@@ -2757,9 +2760,10 @@ async def create_miner_benchmark(miner_id: int, config: dict) -> int:
             INSERT INTO miner_benchmarks (
                 miner_id, status, min_freq_mhz, max_freq_mhz, freq_step_mhz,
                 min_voltage_mv, max_voltage_mv, voltage_step_mv, dwell_time_s,
-                max_error_rate_pct, pin_fan_pct, quiet_fan_max_pct, current_step, total_steps,
+                max_error_rate_pct, pin_fan_pct, quiet_fan_max_pct, enable_microtuning,
+                micro_freq_step_mhz, micro_volt_step_mv, current_step, total_steps,
                 created_at, updated_at
-            ) VALUES (?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+            ) VALUES (?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
             """,
             (
                 miner_id,
@@ -2773,6 +2777,9 @@ async def create_miner_benchmark(miner_id: int, config: dict) -> int:
                 config["max_error_rate_pct"],
                 config.get("pin_fan_pct"),
                 config.get("quiet_fan_max_pct"),
+                1 if config.get("enable_microtuning") else 0,
+                config.get("micro_freq_step_mhz", 5),
+                config.get("micro_volt_step_mv", 10),
                 config.get("total_steps", 0),
                 now,
                 now,

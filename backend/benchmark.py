@@ -197,7 +197,7 @@ async def _run_benchmark_sweep(
     combinations: list[tuple[int, int]],
 ) -> None:
     """Background task performing the frequency/voltage sweep with safety checks."""
-    logger.info("Starting benchmark sweep #%d for miner #%d (%d combinations)", benchmark_id, miner_id, len(combinations))
+    logger.info("Starting benchmark sweep #%d for miner #%d (%d combinations, enable_microtuning=%s)", benchmark_id, miner_id, len(combinations), bool(config.get("enable_microtuning")))
 
     miner = await db.get_miner(miner_id)
     if not miner:
