@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { Gauge, Play, Square, Sparkles, Rocket, RefreshCw, CheckCircle2 } from 'lucide-react';
 import {
   ComposedChart,
@@ -166,7 +166,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   }, [running, etaSec]);
 
   // Prepared chart data (includes all Phase 1 coarse and Phase 2 microtuning samples)
-  const chartData = useMemo(() => {
+  const rawChartData = useMemo(() => {
     return samples.map((s, idx) => ({
       step: idx + 1,
       name: `${s.freq_mhz}MHz / ${s.voltage_mv}mV`,
@@ -183,6 +183,8 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
       isMicro: idx >= coarseTotal,
     }));
   }, [samples, coarseTotal]);
+
+  const chartData = useDeferredValue(rawChartData);
 
   // Live leading candidates computed from stable samples during run or completed (with fallback to non-thermal-aborted hashing samples)
   const liveCandidateSamples = useMemo(() => {

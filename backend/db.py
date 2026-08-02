@@ -2917,6 +2917,49 @@ async def add_benchmark_sample(benchmark_id: int, miner_id: int, sample: dict) -
         return cursor.lastrowid or 0
 
 
+async def prune_old_benchmarks(keep_runs_per_miner: int = 30) -> int:
+    """Prune historical benchmark runs beyond keep_runs_per_miner per miner.
+
+    Deletes old miner_benchmarks rows (and cascaded benchmark_samples) to keep
+    SQLite database file size compact. Returns count of deleted benchmark runs.
+    """
+    async with connect() as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("SELECT DISTINCT miner_id FROM miner_benchmarks") as cursor:
+            rows = await cursor.fetchall()
+            miner_ids = [r["miner_id"] for r in rows]
+
+        total_deleted = 0
+        for miner_id in miner_ids:
+            async with conn.execute(
+                """
+                SELECT id FROM miner_benchmarks
+                WHERE miner_id = ?
+                ORDER BY id DESC
+                LIMIT -1 OFFSET ?
+                """,
+                (miner_id, keep_runs_per_miner),
+            ) as cursor:
+                old_rows = await cursor.fetchall()
+                old_ids = [r["id"] for r in old_rows]
+
+            if old_ids:
+                placeholders = ",".join("?" * len(old_ids))
+                await conn.execute(
+                    f"DELETE FROM benchmark_samples WHERE benchmark_id IN ({placeholders})",
+                    old_ids,
+                )
+                await conn.execute(
+                    f"DELETE FROM miner_benchmarks WHERE id IN ({placeholders})",
+                    old_ids,
+                )
+                total_deleted += len(old_ids)
+
+        if total_deleted > 0:
+            log.info("Database: pruned %d old benchmark run(s)", total_deleted)
+        return total_deleted
+
+
 async def clear_miner_benchmarks(miner_id: int) -> None:
     """Delete all benchmark records for a miner."""
     async with connect() as conn:

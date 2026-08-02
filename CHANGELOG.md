@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.39.0] — 2026-08-02
+
+### Added & Optimized
+
+- **Parallel Subnet Discovery Concurrency (`backend/discovery.py`).** Parallelized driver fingerprint identification across candidate hosts using `asyncio.gather` with semaphore concurrency, speeding up subnet scans by ~5×.
+- **Automatic Database Pruning Helper (`backend/db.py`).** Added `prune_old_benchmarks(keep_runs_per_miner=30)` to maintain SQLite `minerwatch.db` file size and performance.
+- **Dynamic Polling & Deferred Graph Rendering (`frontend-react/`).** Fine-tuned React Query refetch intervals (2.5s on active miner detail vs 5s summary polling) and wrapped chart datasets in `useDeferredValue` for smooth UI rendering during high-frequency benchmark telemetry sampling.
+
 ## [1.38.7] — 2026-08-02
 
 ### Added & Fixed

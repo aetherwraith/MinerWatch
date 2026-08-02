@@ -450,12 +450,15 @@ async def scan_network(cidr: str | None = None) -> list[dict]:
     candidates = [(h, ports) for h, ports in probes if ports]
     log.info("Discovery: %d candidate host(s)", len(candidates))
 
-    # Step 2: identify the family with the matching driver
-    found: list[dict] = []
-    for host, ports in candidates:
-        info = await _identify_from_ports(host, ports)
-        if info:
-            found.append(info)
+    # Step 2: identify the family with matching drivers concurrently
+    id_sem = asyncio.Semaphore(16)
+
+    async def identify_candidate(host: str, ports: list[int]) -> dict | None:
+        async with id_sem:
+            return await _identify_from_ports(host, ports)
+
+    id_results = await asyncio.gather(*(identify_candidate(h, p) for h, p in candidates))
+    found: list[dict] = [info for info in id_results if info]
 
     log.info("Discovery: identified %d miner(s)", len(found))
     return found

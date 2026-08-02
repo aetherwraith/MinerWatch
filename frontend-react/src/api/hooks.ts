@@ -90,7 +90,7 @@ export function useMiner(id: number | undefined) {
     queryKey: ['miner', id],
     queryFn: ({ signal }) =>
       api<MinerDetailResponse>(`/api/miners/${id}`, { signal }),
-    refetchInterval: FIVE_SECONDS,
+    refetchInterval: 2_500,
   });
 }
 
