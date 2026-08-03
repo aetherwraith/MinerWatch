@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.2] — 2026-08-02
+## [1.39.3] — 2026-08-03
+
+### Fixed
+
+- **Benchmark Microtuning NameError & Profile Calculation Failure (`backend/benchmark.py`).** Fixed an undefined variable reference (`samples` -> `all_samples`) in the benchmark execution loop. Previously, at the end of Phase 1 coarse sweep, referencing `samples` raised a `NameError` which triggered the exception handler, prematurely failing the benchmark run, skipping Phase 2 microtuning, and preventing best efficiency (`best_eff`) and max hashrate (`best_hash`) candidate profiles from being written to the database.
 
 ### Added & Fixed
 

@@ -254,6 +254,7 @@ async def _run_benchmark_sweep(
         auto_fan.reset_miner_state(miner_id)
 
     stable_samples: list[dict[str, Any]] = []
+    all_samples: list[dict[str, Any]] = []
 
     try:
         for idx, (freq, volt) in enumerate(combinations):
@@ -400,6 +401,7 @@ async def _run_benchmark_sweep(
             }
 
             await db.add_benchmark_sample(benchmark_id, miner_id, sample_record)
+            all_samples.append(sample_record)
 
             if is_stable and j_th is not None:
                 stable_samples.append(sample_record)
@@ -415,7 +417,7 @@ async def _run_benchmark_sweep(
 
         # Candidate pool for microtuning: prefer strictly stable samples, but fall back to non-thermal-aborted samples with valid hashrate
         coarse_candidate_pool = stable_samples if stable_samples else [
-            s for s in samples
+            s for s in all_samples
             if s.get("hashrate_ths") and s["hashrate_ths"] > 0 and not (s.get("abort_reason") or "").startswith("Thermal")
         ]
 
@@ -427,7 +429,7 @@ async def _run_benchmark_sweep(
                 best_eff_cand = min(valid_eff_pool, key=lambda s: s["efficiency_j_th"])
                 best_hash_cand = max(valid_hash_pool, key=lambda s: s["hashrate_ths"])
 
-                sampled_pairs = {(s["freq_mhz"], s["voltage_mv"]) for s in samples}
+                sampled_pairs = {(s["freq_mhz"], s["voltage_mv"]) for s in all_samples}
                 micro_candidates: set[tuple[int, int]] = set()
 
                 for cand in (best_eff_cand, best_hash_cand):
@@ -583,6 +585,8 @@ async def _run_benchmark_sweep(
                             "abort_reason": m_abort_reason if not is_stable else None,
                         }
                         await db.add_benchmark_sample(benchmark_id, miner_id, m_sample)
+                        all_samples.append(m_sample)
+
                         if is_stable and j_th is not None:
                             stable_samples.append(m_sample)
 
@@ -591,7 +595,7 @@ async def _run_benchmark_sweep(
 
         # Sweep finished — calculate best candidate profiles across candidate pool (coarse + microtuning)
         final_candidate_pool = stable_samples if stable_samples else [
-            s for s in samples
+            s for s in all_samples
             if s.get("hashrate_ths") and s["hashrate_ths"] > 0 and not (s.get("abort_reason") or "").startswith("Thermal")
         ]
 
