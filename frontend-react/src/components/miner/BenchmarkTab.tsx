@@ -168,10 +168,11 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   // Prepared chart data (includes strictly STABLE Phase 1 coarse and Phase 2 microtuning points)
   const rawChartData = useMemo(() => {
     return samples
-      .filter((s) => ((s.stable as any) === true || (s.stable as any) === 1) && !s.abort_reason && s.efficiency_j_th != null && s.efficiency_j_th > 0 && s.hashrate_ths != null && s.hashrate_ths > 0)
-      .map((s, idx) => ({
-        step: idx + 1,
-        name: `${s.freq_mhz}MHz / ${s.voltage_mv}mV`,
+      .map((s, sampleIdx) => ({ s, origStep: sampleIdx + 1, isMicro: sampleIdx >= coarseTotal }))
+      .filter(({ s }) => ((s.stable as any) === true || (s.stable as any) === 1) && !s.abort_reason && s.efficiency_j_th != null && s.efficiency_j_th > 0 && s.hashrate_ths != null && s.hashrate_ths > 0)
+      .map(({ s, origStep, isMicro }) => ({
+        step: origStep,
+        name: `Step ${origStep}: ${s.freq_mhz}MHz / ${s.voltage_mv}mV`,
         freq: s.freq_mhz,
         volt: s.voltage_mv,
         efficiency: Number(s.efficiency_j_th!.toFixed(1)),
@@ -182,7 +183,7 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
         errorRate: s.error_rate_pct != null ? Number(s.error_rate_pct.toFixed(1)) : null,
         stable: true,
         abortReason: null,
-        isMicro: idx >= coarseTotal,
+        isMicro,
       }));
   }, [samples, coarseTotal]);
 

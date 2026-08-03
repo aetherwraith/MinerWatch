@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.6] — 2026-08-03
+## [1.39.7] — 2026-08-03
+
+### Fixed
+
+- **Progress Chart Original Step Index Preservation (`frontend-react/src/components/miner/BenchmarkTab.tsx`).** Preserved each sample's true original step number (`sampleIdx + 1`) when mapping filtered stable points onto the chart dataset. Chart points and hover tooltips now correctly display "Step 5", "Step 12", etc. matching their exact sequence index in the matrix table rather than resetting to "Step 1".
 
 ### Fixed
 
