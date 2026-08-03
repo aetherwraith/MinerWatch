@@ -1135,11 +1135,27 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
               </div>
             ) : (
               <div className="flex h-48 w-full flex-col items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 p-6 text-center text-xs">
-                <RefreshCw className="h-6 w-6 animate-spin text-emerald-400 mb-2.5" />
-                <span className="font-semibold text-foreground text-sm">Sampling Step 1 in Progress...</span>
-                <span className="text-muted-foreground mt-1 max-w-sm">
-                  Collecting baseline telemetry and thermal stability measurements for {activeTestingPoint?.freq_mhz ?? minFreq} MHz @ {activeTestingPoint?.voltage_mv ?? minVolt} mV. Telemetry graph will render as soon as Step 1 settles ({dwellTime}s dwell).
-                </span>
+                {running ? (
+                  <>
+                    <RefreshCw className="h-6 w-6 animate-spin text-emerald-400 mb-2.5" />
+                    <span className="font-semibold text-foreground text-sm">
+                      {isMicroPhase ? `Sampling Micro Step ${activeCurrent} of ${activeTotal} in Progress...` : `Sampling Step ${activeCurrent} of ${activeTotal} in Progress...`}
+                    </span>
+                    <span className="text-muted-foreground mt-1 max-w-sm">
+                      Collecting telemetry and thermal stability measurements for {activeTestingPoint?.freq_mhz ?? minFreq} MHz @ {activeTestingPoint?.voltage_mv ?? minVolt} mV. {samples.length > 0 ? `${samples.length} previous step(s) were unstable or aborted. ` : ''}Telemetry graph will render as soon as a stable operating point settles ({dwellTime}s dwell).
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Gauge className="h-6 w-6 text-amber-400 mb-2.5 opacity-80" />
+                    <span className="font-semibold text-foreground text-sm">No Stable Operating Points Plotted</span>
+                    <span className="text-muted-foreground mt-1 max-w-sm">
+                      {samples.length > 0
+                        ? `All ${samples.length} sampled combination(s) were unstable, exceeded error rate caps, or tripped safety thresholds. Review the complete step history in the matrix table below.`
+                        : 'No benchmark telemetry samples available for this run.'}
+                    </span>
+                  </>
+                )}
               </div>
             )}
 

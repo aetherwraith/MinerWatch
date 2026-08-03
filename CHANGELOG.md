@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.7] — 2026-08-03
+## [1.39.8] — 2026-08-03
+
+### Fixed
+
+- **Dynamic Chart Fallback & Progress Spinner Message (`frontend-react/src/components/miner/BenchmarkTab.tsx`).** Replaced the static "Step 1 in Progress..." placeholder with dynamic active step progress (`Sampling Step ${activeCurrent} of ${activeTotal} in Progress...`). Displays real-time sampling status for the active frequency and voltage pair, notes when previous steps were unstable/aborted, and renders a clean "No Stable Operating Points Plotted" state when a completed run yields no stable points.
 
 ### Fixed
 
