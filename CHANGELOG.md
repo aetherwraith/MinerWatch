@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.4] — 2026-08-03
+## [1.39.5] — 2026-08-03
+
+### Improved & Fixed
+
+- **Progress Chart Data Filtering (`frontend-react/src/components/miner/BenchmarkTab.tsx` & `deno-app/public/app.js`).** Filtered benchmark dataset plotted on the efficiency & hashrate progress line graph to strictly include stable operating points (`stable: true` & valid efficiency J/TH). Excluded aborted or non-stabilized points from the trend line to eliminate misleading 0 J/TH drops and chart spikes while preserving the complete step history (with green/red stability badges) in the matrix sample table.
 
 ### Fixed
 

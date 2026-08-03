@@ -165,23 +165,25 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
     return `~${m}m ${s > 0 ? `${s}s ` : ''}remaining`;
   }, [running, etaSec]);
 
-  // Prepared chart data (includes all Phase 1 coarse and Phase 2 microtuning samples)
+  // Prepared chart data (includes strictly STABLE Phase 1 coarse and Phase 2 microtuning points)
   const rawChartData = useMemo(() => {
-    return samples.map((s, idx) => ({
-      step: idx + 1,
-      name: `${s.freq_mhz}MHz / ${s.voltage_mv}mV`,
-      freq: s.freq_mhz,
-      volt: s.voltage_mv,
-      efficiency: s.efficiency_j_th ? Number(s.efficiency_j_th.toFixed(1)) : null,
-      hashrate: s.hashrate_ths ? Number(s.hashrate_ths.toFixed(2)) : null,
-      power: s.power_w ? Number(s.power_w.toFixed(1)) : null,
-      chipTemp: s.chip_temp_c ? Number(s.chip_temp_c.toFixed(1)) : null,
-      vrTemp: s.vr_temp_c ? Number(s.vr_temp_c.toFixed(1)) : null,
-      errorRate: s.error_rate_pct != null ? Number(s.error_rate_pct.toFixed(1)) : null,
-      stable: !!s.stable,
-      abortReason: s.abort_reason || (!s.stable ? 'Unstable / Error Rate Exceeded' : null),
-      isMicro: idx >= coarseTotal,
-    }));
+    return samples
+      .filter((s) => s.stable && s.efficiency_j_th != null && s.hashrate_ths != null)
+      .map((s, idx) => ({
+        step: idx + 1,
+        name: `${s.freq_mhz}MHz / ${s.voltage_mv}mV`,
+        freq: s.freq_mhz,
+        volt: s.voltage_mv,
+        efficiency: s.efficiency_j_th != null ? Number(s.efficiency_j_th.toFixed(1)) : 0,
+        hashrate: s.hashrate_ths != null ? Number(s.hashrate_ths.toFixed(2)) : 0,
+        power: s.power_w ? Number(s.power_w.toFixed(1)) : null,
+        chipTemp: s.chip_temp_c ? Number(s.chip_temp_c.toFixed(1)) : null,
+        vrTemp: s.vr_temp_c ? Number(s.vr_temp_c.toFixed(1)) : null,
+        errorRate: s.error_rate_pct != null ? Number(s.error_rate_pct.toFixed(1)) : null,
+        stable: true,
+        abortReason: null,
+        isMicro: idx >= coarseTotal,
+      }));
   }, [samples, coarseTotal]);
 
   const chartData = useDeferredValue(rawChartData);
