@@ -168,14 +168,14 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   // Prepared chart data (includes strictly STABLE Phase 1 coarse and Phase 2 microtuning points)
   const rawChartData = useMemo(() => {
     return samples
-      .filter((s) => s.stable && s.efficiency_j_th != null && s.hashrate_ths != null)
+      .filter((s) => ((s.stable as any) === true || (s.stable as any) === 1) && !s.abort_reason && s.efficiency_j_th != null && s.efficiency_j_th > 0 && s.hashrate_ths != null && s.hashrate_ths > 0)
       .map((s, idx) => ({
         step: idx + 1,
         name: `${s.freq_mhz}MHz / ${s.voltage_mv}mV`,
         freq: s.freq_mhz,
         volt: s.voltage_mv,
-        efficiency: s.efficiency_j_th != null ? Number(s.efficiency_j_th.toFixed(1)) : 0,
-        hashrate: s.hashrate_ths != null ? Number(s.hashrate_ths.toFixed(2)) : 0,
+        efficiency: Number(s.efficiency_j_th!.toFixed(1)),
+        hashrate: Number(s.hashrate_ths!.toFixed(2)),
         power: s.power_w ? Number(s.power_w.toFixed(1)) : null,
         chipTemp: s.chip_temp_c ? Number(s.chip_temp_c.toFixed(1)) : null,
         vrTemp: s.vr_temp_c ? Number(s.vr_temp_c.toFixed(1)) : null,

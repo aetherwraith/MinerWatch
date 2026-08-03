@@ -97,7 +97,7 @@ class BenchmarkVisualizer extends HTMLElement {
 
   render() {
     const samples = this._samples || [];
-    const points = samples.filter(s => s.stable && s.efficiency_j_th != null);
+    const points = samples.filter(s => (s.stable === true || s.stable === 1) && !s.abort_reason && s.efficiency_j_th != null && s.efficiency_j_th > 0);
 
     let svgPoly = '';
     if (points.length > 1) {

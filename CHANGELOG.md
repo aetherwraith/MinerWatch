@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.5] — 2026-08-03
+## [1.39.6] — 2026-08-03
+
+### Fixed
+
+- **Strict Benchmark Progress Graph Filter (`frontend-react/src/components/miner/BenchmarkTab.tsx` & `deno-app/public/app.js`).** Strengthened chart dataset filter to check `s.stable === true || s.stable === 1` AND enforce `!s.abort_reason`. Ensures samples aborted for high error rates, zero hashrate, or thermal skips (which store `stable: 0` in SQLite) are strictly excluded from the efficiency & hashrate trend line graph.
 
 ### Improved & Fixed
 
