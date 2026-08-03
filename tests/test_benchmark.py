@@ -6,6 +6,7 @@ from backend import benchmark, db
 
 @pytest.mark.anyio
 async def test_benchmark_db_lifecycle():
+    await db.init_db()
     # Insert dummy miner
     miner_id = await db.upsert_miner({
         "family": "bitaxe",
@@ -90,3 +91,59 @@ async def test_benchmark_db_lifecycle():
     finally:
         async with db.connect() as conn:
             await conn.execute("DELETE FROM miners WHERE id = ?", (miner_id,))
+
+
+@pytest.mark.anyio
+async def test_microtuning_execution_flow():
+    await db.init_db()
+    miner_id = await db.upsert_miner({
+        "family": "bitaxe",
+        "host": "192.168.1.98",
+        "port": 80,
+        "name": "Test MicroBench",
+        "enabled": 1,
+    })
+
+    try:
+        cfg = {
+            "min_freq_mhz": 500,
+            "max_freq_mhz": 550,
+            "freq_step_mhz": 25,
+            "min_voltage_mv": 1200,
+            "max_voltage_mv": 1250,
+            "voltage_step_mv": 25,
+            "dwell_time_s": 1,
+            "max_error_rate_pct": 2.0,
+            "enable_microtuning": True,
+            "micro_freq_step_mhz": 5,
+            "micro_volt_step_mv": 10,
+        }
+
+        bench_id = await db.create_miner_benchmark(miner_id, cfg)
+        comb = [(500, 1200), (525, 1250)]
+
+        # Mock poller metric sample
+        class DummySample:
+            hashrate_ths = 2.0
+            power_w = 30.0
+            temp_chip_c = 50.0
+            temp_vr_c = 45.0
+            error_pct = 0.0
+            rejected = 0
+            accepted = 100
+
+        benchmark.poller.last_results[miner_id] = DummySample()
+
+        # Run sweep
+        await benchmark._run_benchmark_sweep(bench_id, miner_id, cfg, comb)
+
+        res = await db.get_latest_miner_benchmark(miner_id)
+        assert res is not None
+        assert res["status"] == "completed"
+        assert res["best_eff_freq"] is not None
+        assert res["best_hash_freq"] is not None
+    finally:
+        benchmark.poller.last_results.pop(miner_id, None)
+        async with db.connect() as conn:
+            await conn.execute("DELETE FROM miners WHERE id = ?", (miner_id,))
+

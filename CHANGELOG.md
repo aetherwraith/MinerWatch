@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.3] — 2026-08-03
+## [1.39.4] — 2026-08-03
+
+### Fixed
+
+- **Microtuning Parameter Extraction & Execution Fix (`backend/benchmark.py`).** Fixed a second `NameError: name 'min_freq_mhz' is not defined` when initializing Phase 2 microtuning bounds at line 438 of `_run_benchmark_sweep`. Extracted `min_freq_mhz`, `max_freq_mhz`, `freq_step_mhz`, `min_voltage_mv`, `max_voltage_mv`, and `voltage_step_mv` from the task configuration dictionary into local scope. Added comprehensive unit test `test_microtuning_execution_flow` (278/278 passing).
 
 ### Fixed
 

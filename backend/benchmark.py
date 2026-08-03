@@ -412,8 +412,14 @@ async def _run_benchmark_sweep(
 
         # Optional Microtuning Sweep Phase
         enable_micro = bool(config.get("enable_microtuning"))
-        micro_f_step = int(config.get("micro_freq_step_mhz", 5))
-        micro_v_step = int(config.get("micro_volt_step_mv", 10))
+        micro_f_step = max(1, int(config.get("micro_freq_step_mhz", 5)))
+        micro_v_step = max(1, int(config.get("micro_volt_step_mv", 10)))
+        min_freq_mhz = int(config.get("min_freq_mhz", 500))
+        max_freq_mhz = int(config.get("max_freq_mhz", 1000))
+        freq_step_mhz = max(1, int(config.get("freq_step_mhz", 25)))
+        min_voltage_mv = int(config.get("min_voltage_mv", 1150))
+        max_voltage_mv = int(config.get("max_voltage_mv", 1300))
+        voltage_step_mv = max(1, int(config.get("voltage_step_mv", 25)))
 
         # Candidate pool for microtuning: prefer strictly stable samples, but fall back to non-thermal-aborted samples with valid hashrate
         coarse_candidate_pool = stable_samples if stable_samples else [
