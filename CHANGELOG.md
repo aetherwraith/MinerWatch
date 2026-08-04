@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.8] — 2026-08-03
+## [1.39.9] — 2026-08-04
+
+### Fixed
+
+- **Guardian Profile Overwrite & Duplicate Prevention (`backend/db.py` & `frontend-react/src/components/miner/BenchmarkTab.tsx`).** Fixed issue where saving benchmark results created new duplicate profile rows instead of overwriting existing profiles. `save_guardian_profile` now checks for existing profiles with the same `(miner_id, name)` before inserting, and `get_guardian_profiles` deduplicates synthetic benchmark profile fallbacks so existing saved profile IDs and prior settings are correctly surfaced in the UI.
 
 ### Fixed
 

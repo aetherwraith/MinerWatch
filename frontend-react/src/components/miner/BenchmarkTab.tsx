@@ -67,9 +67,13 @@ export function BenchmarkTab({ minerId }: BenchmarkTabProps) {
   // Acknowledgment & profile save selection state
   const isUnacknowledged = !!latestRun && !running && (latestRun.acknowledged === 0 || latestRun.acknowledged === undefined) && (latestRun.status === 'completed' || latestRun.status === 'aborted' || latestRun.status === 'failed');
 
-  const effExisting = existingProfiles.find((p) => p.name === 'Max Efficiency (Benchmark)');
-  const hashExisting = existingProfiles.find((p) => p.name === 'Max Hashrate (Benchmark)');
-  const quietExisting = existingProfiles.find((p) => p.name === 'Best Quiet (Benchmark)');
+  const realSavedProfiles = useMemo(() => {
+    return existingProfiles.filter((p) => p.id > 0 && !p.is_benchmark);
+  }, [existingProfiles]);
+
+  const effExisting = realSavedProfiles.find((p) => p.name === 'Max Efficiency (Benchmark)');
+  const hashExisting = realSavedProfiles.find((p) => p.name === 'Max Hashrate (Benchmark)');
+  const quietExisting = realSavedProfiles.find((p) => p.name === 'Best Quiet (Benchmark)');
 
   const [saveEff, setSaveEff] = useState<boolean>(true);
   const [saveHash, setSaveHash] = useState<boolean>(true);

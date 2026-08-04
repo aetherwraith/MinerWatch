@@ -2989,11 +2989,26 @@ async def get_guardian_profiles(miner_id: int) -> list[dict]:
     profiles: list[dict] = []
     async with connect() as conn:
         conn.row_factory = aiosqlite.Row
-        # 1. Fetch benchmark-derived profiles if available
+        # 1. Fetch custom saved user profiles first
+        async with conn.execute(
+            """
+            SELECT * FROM guardian_profiles
+            WHERE miner_id = ? OR miner_id IS NULL
+            ORDER BY id ASC
+            """,
+            (miner_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for r in rows:
+                profiles.append(dict(r))
+
+        saved_names = {p["name"] for p in profiles}
+
+        # 2. Fetch benchmark-derived profiles only for names not already saved as custom profiles
         async with conn.execute(
             """
             SELECT * FROM miner_benchmarks
-            WHERE miner_id = ? AND status = 'completed'
+            WHERE miner_id = ? AND status IN ('completed', 'acknowledged')
             ORDER BY id DESC LIMIT 1
             """,
             (miner_id,),
@@ -3001,7 +3016,7 @@ async def get_guardian_profiles(miner_id: int) -> list[dict]:
             bench = await cursor.fetchone()
             if bench:
                 b = dict(bench)
-                if b.get("best_eff_freq"):
+                if b.get("best_eff_freq") and "Max Efficiency (Benchmark)" not in saved_names:
                     profiles.append({
                         "id": -1,  # synthetic id for benchmark max efficiency
                         "miner_id": miner_id,
@@ -3015,7 +3030,7 @@ async def get_guardian_profiles(miner_id: int) -> list[dict]:
                         "max_vr_temp_c": None,
                         "created_at": b["updated_at"],
                     })
-                if b.get("best_hash_freq"):
+                if b.get("best_hash_freq") and "Max Hashrate (Benchmark)" not in saved_names:
                     profiles.append({
                         "id": -2,  # synthetic id for benchmark max hashrate
                         "miner_id": miner_id,
@@ -3029,38 +3044,56 @@ async def get_guardian_profiles(miner_id: int) -> list[dict]:
                         "max_vr_temp_c": None,
                         "created_at": b["updated_at"],
                     })
-
-        # 2. Fetch custom user profiles
-        async with conn.execute(
-            """
-            SELECT * FROM guardian_profiles
-            WHERE miner_id = ? OR miner_id IS NULL
-            ORDER BY id ASC
-            """,
-            (miner_id,),
-        ) as cursor:
-            rows = await cursor.fetchall()
-            for r in rows:
-                profiles.append(dict(r))
+                if b.get("best_quiet_freq") and "Best Quiet (Benchmark)" not in saved_names:
+                    profiles.append({
+                        "id": -3,  # synthetic id for benchmark best quiet
+                        "miner_id": miner_id,
+                        "name": "Best Quiet (Benchmark)",
+                        "is_benchmark": 1,
+                        "max_freq_mhz": b["best_quiet_freq"],
+                        "voltage_mv": b["best_quiet_volt"],
+                        "fan_max_pct": b.get("best_quiet_fan_pct"),
+                        "max_power_w": None,
+                        "max_chip_temp_c": None,
+                        "max_vr_temp_c": None,
+                        "created_at": b["updated_at"],
+                    })
 
     return profiles
 
 
 async def save_guardian_profile(miner_id: int, profile: dict) -> int:
-    """Insert or update a custom Guardian profile."""
+    """Insert or update a custom Guardian profile by ID or by (miner_id, name)."""
     now = now_ts()
+    prof_id = profile.get("id")
+    prof_name = profile.get("name", "Custom Profile")
+
     async with connect() as conn:
-        if profile.get("id") and profile["id"] > 0:
+        conn.row_factory = aiosqlite.Row
+        target_id = None
+        if prof_id and int(prof_id) > 0:
+            target_id = int(prof_id)
+        else:
+            # Check if a profile with the same name exists for this miner (or globally)
+            async with conn.execute(
+                "SELECT id FROM guardian_profiles WHERE name = ? AND (miner_id = ? OR miner_id IS NULL) ORDER BY id DESC LIMIT 1",
+                (prof_name, miner_id),
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    target_id = row["id"]
+
+        if target_id:
             await conn.execute(
                 """
                 UPDATE guardian_profiles SET
                     name = ?, max_freq_mhz = ?, voltage_mv = ?,
                     fan_mode = ?, fan_speed_pct = ?, fan_max_pct = ?,
                     max_power_w = ?, max_chip_temp_c = ?, max_vr_temp_c = ?
-                WHERE id = ? AND (miner_id = ? OR miner_id IS NULL)
+                WHERE id = ?
                 """,
                 (
-                    profile["name"],
+                    prof_name,
                     profile.get("max_freq_mhz"),
                     profile.get("voltage_mv"),
                     profile.get("fan_mode"),
@@ -3069,11 +3102,10 @@ async def save_guardian_profile(miner_id: int, profile: dict) -> int:
                     profile.get("max_power_w"),
                     profile.get("max_chip_temp_c"),
                     profile.get("max_vr_temp_c"),
-                    profile["id"],
-                    miner_id,
+                    target_id,
                 ),
             )
-            return profile["id"]
+            return target_id
         else:
             cursor = await conn.execute(
                 """
@@ -3085,7 +3117,7 @@ async def save_guardian_profile(miner_id: int, profile: dict) -> int:
                 """,
                 (
                     miner_id,
-                    profile["name"],
+                    prof_name,
                     profile.get("max_freq_mhz"),
                     profile.get("voltage_mv"),
                     profile.get("fan_mode"),
