@@ -252,6 +252,44 @@ export function useAmbientTemp() {
   });
 }
 
+export function useAmbiTempStatus() {
+  return useQuery({
+    queryKey: ['ambitemp-status'],
+    queryFn: ({ signal }) => api<any>('/api/ambitemp/status', { signal }),
+    refetchInterval: FIVE_SECONDS,
+  });
+}
+
+export function useSaveAmbiTempHosts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (hosts: string[]) =>
+      api<{ ok: boolean; hosts: string[] }>('/api/ambitemp/config', {
+        method: 'POST',
+        body: { hosts },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ambitemp-status'] });
+      qc.invalidateQueries({ queryKey: ['fleet-ambient-temp'] });
+    },
+  });
+}
+
+export function useUpdateAmbiTempHost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ oldHost, newHost }: { oldHost: string; newHost: string }) =>
+      api<{ ok: boolean; hosts: string[] }>('/api/ambitemp/update-host', {
+        method: 'POST',
+        body: { old_host: oldHost, new_host: newHost },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ambitemp-status'] });
+      qc.invalidateQueries({ queryKey: ['fleet-ambient-temp'] });
+    },
+  });
+}
+
 export function useAuthStatus() {
   return useQuery({
     queryKey: ['auth-status'],

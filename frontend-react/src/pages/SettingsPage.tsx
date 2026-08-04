@@ -13,6 +13,8 @@ import { formToOverrides, useSettingsForm } from '@/components/settings/Settings
 import { useSaveSettings, useSettings } from '@/api/hooks';
 import { ApiError } from '@/lib/api';
 
+import { AmbientTab } from '@/components/settings/AmbientTab';
+
 /**
  * Settings page.
  *
@@ -34,7 +36,7 @@ export function SettingsPage() {
   // (used by the security banner / auto-scan warning). Falls back to
   // General for a missing or unrecognised value.
   const [searchParams] = useSearchParams();
-  const validTabs = ['general', 'alerts', 'notifications', 'security'];
+  const validTabs = ['general', 'alerts', 'notifications', 'security', 'ambient'];
   const tabParam = searchParams.get('tab');
   const initialTab =
     tabParam && validTabs.includes(tabParam) ? tabParam : 'general';
@@ -69,7 +71,7 @@ export function SettingsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Configuration, alerts, notifications and security
+            Configuration, alerts, notifications, security and temperature sensors
           </p>
         </div>
         <Button onClick={handleSave} disabled={save.isPending}>
@@ -97,6 +99,7 @@ export function SettingsPage() {
           <TabsTrigger value="alerts">Alerts</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="ambient">Ambient Sensors</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-0">
@@ -110,6 +113,9 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="security" className="mt-0">
           <SecurityTab form={form} setForm={setForm} />
+        </TabsContent>
+        <TabsContent value="ambient" className="mt-0">
+          <AmbientTab />
         </TabsContent>
       </Tabs>
     </div>

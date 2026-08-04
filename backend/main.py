@@ -1149,6 +1149,42 @@ async def api_ambitemp_poll() -> dict:
     return {"ok": True, "polled_count": len(results), "readings": results}
 
 
+@app.get("/api/ambitemp/status")
+async def api_ambitemp_status() -> dict:
+    """Return live status of pushing sensors and configured pull sensors."""
+    return await ambitemp_poller.get_ambitemp_status()
+
+
+@app.get("/api/ambitemp/discover")
+async def api_ambitemp_discover(cidr: str | None = Query(default=None)) -> dict:
+    """Scan subnet for AmbiTemp pull sensors and detect changed host IP addresses."""
+    return await ambitemp_poller.discover_ambitemp_sensors(target_cidr=cidr)
+
+
+class UpdateHostPayload(BaseModel):
+    old_host: str
+    new_host: str
+
+
+@app.post("/api/ambitemp/update-host")
+async def api_ambitemp_update_host(payload: UpdateHostPayload) -> dict:
+    """Update or replace a pull sensor host IP address when its DHCP assignment changes."""
+    hosts_str = await db.get_setting("ambitemp_hosts", "")
+    if not hosts_str:
+        hosts_str = await db.get_setting("altitemp_hosts", "")
+    hosts = [h.strip() for h in hosts_str.split(",") if h.strip()]
+    old_h = payload.old_host.strip()
+    new_h = payload.new_host.strip()
+    if old_h in hosts:
+        idx = hosts.index(old_h)
+        hosts[idx] = new_h
+    elif new_h not in hosts:
+        hosts.append(new_h)
+    new_str = ",".join([h for h in hosts if h])
+    await db.set_setting("ambitemp_hosts", new_str)
+    return {"ok": True, "hosts": hosts}
+
+
 # ---------- Live per-share streaming (AxeOS only) ----------
 #
 # The REST poller only sees aggregates. For AxeOS miners we also tap the

@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.13] — 2026-08-04
+## [1.39.14] — 2026-08-04
+
+### Added
+
+- **Ambient Temperature Sensor Configuration Page & LAN Subnet Scanner (`frontend-react/src/components/settings/AmbientTab.tsx`, `deno-app/public/app.js`, `backend/ambitemp_poller.py`).** Added dedicated Ambient Sensors settings tab and zero-dependency Deno modal. Displays active push sensors (`POST /api/ambient`), allows adding/removing configured pull sensor host IPs (`GET /api/readings`), and includes a LAN subnet scanner (`GET /api/ambitemp/discover`) to auto-discover LAN sensors and automatically update moved host IP addresses (`POST /api/ambitemp/update-host`).
 
 ### Refactored & Improved
 
@@ -488,14 +492,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Immediate fan takeover on enable.** Disabling and re-enabling Guardian immediately triggers fan pinning and evaluation without waiting for periodic interval ticks.
 
 
-=======
 ## [1.19.6] — 2026-08-04
 
 - **IMPORTANT: the development of MinerWatch is coming to a stop.** No donations
   have come in during these months. I'll take some more time to think about the
   future of MinerWatch based on the donations that come in from here on. If you
   like it or use it, please give this a thought.
->>>>>>> origin/main
 
 ## [1.19.5] — 2026-06-29
 

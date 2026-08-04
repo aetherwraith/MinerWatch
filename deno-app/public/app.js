@@ -649,3 +649,197 @@ async function pollBenchStatus(minerId) {
     };
   }
 }
+
+window.openAmbientModal = async function() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'active-modal';
+
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 700px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+        <div>
+          <h2 style="font-size: 1.3rem; font-weight: 800;">Ambient Temperature Sensors</h2>
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">Push & Pull Ambient Sensor Configuration</span>
+        </div>
+        <button class="btn-action" onclick="closeModal()">Close</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1.5rem; padding-top: 1rem;">
+        <!-- Push Sensors -->
+        <div>
+          <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-primary); margin-bottom: 0.5rem;">Push Temperature Sensors (HTTP POST)</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">Sensors pushing data over LAN to <code style="color: var(--color-primary);">/api/ambient</code> (Auth-Exempt).</p>
+          <div id="ambient-push-list" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem;">Loading push sensors...</div>
+        </div>
+
+        <!-- Pull Sensors -->
+        <div>
+          <h3 style="font-size: 1rem; font-weight: 700; color: #38bdf8; margin-bottom: 0.5rem;">Pull Temperature Sensors (HTTP GET)</h3>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <input type="text" id="input-pull-host" placeholder="Sensor Host IP (e.g. 192.168.4.200)" class="form-input" style="flex: 1;">
+            <button class="btn-action btn-primary" onclick="addAmbiHost()">Add Host</button>
+            <button class="btn-action" onclick="refreshAmbiModal()">Poll Now</button>
+          </div>
+          <div id="ambient-pull-list" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem;">Loading pull sensors...</div>
+        </div>
+
+        <!-- LAN Subnet Scanner -->
+        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-warning);">Subnet Temperature Sensor Scanner</h3>
+            <button class="btn-action" onclick="scanAmbiSubnet()">Scan Subnet</button>
+          </div>
+          <div id="ambient-scan-results" style="font-size: 0.85rem; color: var(--text-muted);">Click Scan Subnet to detect temperature sensors on LAN and auto-update moved IPs.</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  refreshAmbiModal();
+};
+
+async function refreshAmbiModal() {
+  const pushList = document.getElementById('ambient-push-list');
+  const pullList = document.getElementById('ambient-pull-list');
+  if (!pushList || !pullList) return;
+
+  try {
+    const res = await fetch('/api/ambitemp/status');
+    const data = await res.json();
+
+    const pushSensors = data.push_sensors || [];
+    if (pushSensors.length === 0) {
+      pushList.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted); italic;">No active push sensors.</span>`;
+    } else {
+      pushList.innerHTML = pushSensors.map(s => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <div>
+            <strong style="font-size: 0.9rem;">${s.name || 'Unnamed'}</strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-left: 0.5rem;">(${s.sensor_id})</span>
+          </div>
+          <div>
+            <span style="font-size: 1rem; font-weight: 800;">${s.available && s.current_c !== null ? s.current_c + '°C' : '—'}</span>
+            <span style="font-size: 0.75rem; margin-left: 0.5rem; padding: 2px 6px; border-radius: 4px; background: ${s.available ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.1)'}; color: ${s.available ? '#4ade80' : 'var(--text-muted)'};">${s.available ? 'Active' : 'Stale'}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    const pullSensors = data.pull_sensors || [];
+    const configuredHosts = data.configured_hosts || [];
+    if (configuredHosts.length === 0) {
+      pullList.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted); italic;">No pull sensor host IPs configured.</span>`;
+    } else {
+      pullList.innerHTML = pullSensors.map(p => `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <div>
+            <strong style="font-size: 0.9rem;">${p.name || p.host}</strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-left: 0.5rem;">${p.host} ${p.sensor_id ? '(' + p.sensor_id + ')' : ''}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1rem; font-weight: 800; color: ${p.online ? '#ffffff' : '#ef4444'};">${p.online && p.temp_c !== undefined ? p.temp_c + '°C' : 'Offline'}</span>
+            <button class="btn-action btn-danger" style="padding: 2px 8px; font-size: 0.75rem;" onclick="removeAmbiHost('${p.host}')">Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    pushList.innerHTML = `Error loading sensors: ${err.message}`;
+  }
+}
+
+window.addAmbiHost = async function() {
+  const input = document.getElementById('input-pull-host');
+  const host = input ? input.value.trim() : '';
+  if (!host) return;
+
+  const res = await fetch('/api/ambitemp/config');
+  const curr = await res.json();
+  const hosts = curr.hosts || [];
+  if (!hosts.includes(host)) hosts.push(host);
+
+  await fetch('/api/ambitemp/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hosts }),
+  });
+  if (input) input.value = '';
+  refreshAmbiModal();
+};
+
+window.removeAmbiHost = async function(host) {
+  const res = await fetch('/api/ambitemp/config');
+  const curr = await res.json();
+  const hosts = (curr.hosts || []).filter(h => h !== host);
+
+  await fetch('/api/ambitemp/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hosts }),
+  });
+  refreshAmbiModal();
+};
+
+window.scanAmbiSubnet = async function() {
+  const area = document.getElementById('ambient-scan-results');
+  if (!area) return;
+  area.innerHTML = `Scanning local network for temperature sensors...`;
+
+  try {
+    const res = await fetch('/api/ambitemp/discover');
+    const data = await res.json();
+
+    if (data.error) {
+      area.innerHTML = `<span style="color: #ef4444;">${data.error}</span>`;
+      return;
+    }
+
+    const discovered = data.discovered || [];
+    const configuredHosts = data.configured_hosts || [];
+
+    if (discovered.length === 0) {
+      area.innerHTML = `Scanned ${data.total_scanned} hosts on ${data.cidr}. No temperature sensors found.`;
+      return;
+    }
+
+    area.innerHTML = `
+      <div style="margin-bottom: 0.5rem;">Scanned ${data.cidr} (${data.total_scanned} hosts). Found ${discovered.length} sensors:</div>
+      <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem;">
+        ${discovered.map(d => {
+          const isConfigured = configuredHosts.includes(d.ip);
+          return `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <div>
+                <strong>${d.name}</strong> (${d.ip}) <span style="font-size: 0.75rem; color: var(--text-muted);">ID: ${d.sensor_id}</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-weight: 800;">${d.temp_c}°C</span>
+                ${isConfigured 
+                  ? `<span style="font-size: 0.75rem; color: #4ade80;">Configured</span>` 
+                  : `<button class="btn-action btn-primary" style="padding: 2px 8px; font-size: 0.75rem;" onclick="addDiscoveredAmbi('${d.ip}')">Add IP</button>`}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } catch (err) {
+    area.innerHTML = `Scan failed: ${err.message}`;
+  }
+};
+
+window.addDiscoveredAmbi = async function(ip) {
+  const res = await fetch('/api/ambitemp/config');
+  const curr = await res.json();
+  const hosts = curr.hosts || [];
+  if (!hosts.includes(ip)) hosts.push(ip);
+
+  await fetch('/api/ambitemp/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hosts }),
+  });
+  refreshAmbiModal();
+};
