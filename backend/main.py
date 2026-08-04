@@ -44,6 +44,7 @@ from . import (
 )
 from .alerts import ensure_vapid_keys, public_key_b64
 from .ambient_temp import VALID_MAX_C, VALID_MIN_C, ambient
+from . import ambitemp_poller
 from .auth import (
     clear_login_failures,
     login_lockout_remaining,
@@ -1113,6 +1114,39 @@ async def api_ambient(payload: AmbientPayload) -> dict:
         "name": snap.name if snap else None,
         "sensor_id": payload.sensor_id,
     }
+
+
+class AmbiTempConfigPayload(BaseModel):
+    hosts: list[str]
+
+
+@app.get("/api/ambitemp/config")
+@app.get("/api/altitemp/config")
+async def api_ambitemp_config() -> dict:
+    """Get list of AmbiTemp (CYD ESP32 BMP280) device IPs configured for polling."""
+    hosts_str = await db.get_setting("ambitemp_hosts", "")
+    if not hosts_str:
+        hosts_str = await db.get_setting("altitemp_hosts", "")
+    hosts = [h.strip() for h in hosts_str.split(",") if h.strip()]
+    return {"hosts": hosts, "hosts_str": hosts_str}
+
+
+@app.post("/api/ambitemp/config")
+@app.post("/api/altitemp/config")
+async def api_ambitemp_config_save(payload: AmbiTempConfigPayload) -> dict:
+    """Save configured AmbiTemp device IPs for MinerWatch to poll."""
+    hosts_clean = [h.strip() for h in payload.hosts if h.strip()]
+    hosts_str = ",".join(hosts_clean)
+    await db.set_setting("ambitemp_hosts", hosts_str)
+    return {"ok": True, "hosts": hosts_clean}
+
+
+@app.post("/api/ambitemp/poll")
+@app.post("/api/altitemp/poll")
+async def api_ambitemp_poll() -> dict:
+    """Trigger an immediate poll cycle of configured AmbiTemp devices."""
+    results = await ambitemp_poller.poll_ambitemp_cycle()
+    return {"ok": True, "polled_count": len(results), "readings": results}
 
 
 # ---------- Live per-share streaming (AxeOS only) ----------

@@ -17,7 +17,7 @@ import logging
 import math
 import time
 
-from . import alerts, coin as coin_mod, coin_difficulty, db
+from . import alerts, ambitemp_poller, coin as coin_mod, coin_difficulty, db
 from .log_streamer import log_streamer
 from .miners import driver_for_record
 from .miners.base import MinerSample
@@ -215,6 +215,7 @@ class Poller:
             cycle_start = time.monotonic()
             try:
                 self._warm_coin_difficulties()
+                await ambitemp_poller.poll_ambitemp_cycle()
                 await self.poll_once()
                 # Rollup runs ~every minute (cheap, idempotent), cleanup
                 # runs ~every hour. Both are guarded by separate "last

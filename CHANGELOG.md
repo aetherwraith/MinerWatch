@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<<<<<<< HEAD
+## [1.39.13] — 2026-08-04
+
+### Refactored & Improved
+
+- **Renamed External Temperature Poller (`backend/ambitemp_poller.py`, `backend/main.py`, `backend/auth.py`).** Renamed `altitemp` to `ambitemp` (`AmbiTemp`) for consistency with ambient temperature terminology. Exposed `/api/ambitemp/config` and `/api/ambitemp/poll` while retaining backward-compatible aliases for existing installations.
+
+### Fixed
+
+- **Bidirectional Fan Mode & Target Temperature Sync (`deno-app/drivers.ts`, `deno-app/public/app.js`, `backend/auto_control.py`).** Fixed issue where miners were incorrectly marked as `firmware (auto)` when set to `manual` fan speed on device. `drivers.ts` now extracts live `autofanspeed` (0=manual, >0=firmware auto) and `tempTarget` / `pidTargetTemp` directly from miner telemetry. `auto_control.py` now syncs `fan_mode` bidirectionally when device state changes. `saveFanSettings` in Deno UI now routes manual fan speed changes to `POST /api/miners/{id}/control/fan`.
+
 ## [1.39.12] — 2026-08-04
 
 ### Fixed

@@ -174,6 +174,8 @@ def public_paths(path: str) -> bool:
         # display; it touches no settings and controls no miner.
         "/api/panel",
         "/api/ambient",
+        "/api/ambitemp",
+        "/api/altitemp",
         "/sw.js",
         "/assets/",
         "/static/",
