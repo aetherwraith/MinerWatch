@@ -1799,6 +1799,8 @@ class GuardianConfigPayload(BaseModel):
     clear_vr_temp: bool | None = None
     clear_chip_temp: bool | None = None
     voltage_enabled: bool | None = None
+    max_voltage_mv: int | None = Field(default=None, ge=800, le=1600)
+    voltage_floor_mv: int | None = Field(default=None, ge=800, le=1600)
     max_power_w: float | None = Field(default=None, ge=10, le=500)
     fan_max_pct: int | None = Field(default=None, ge=20, le=100)
 
@@ -1923,6 +1925,8 @@ async def api_guardian_status(miner_id: int) -> dict:
         "autofan_vr_temp_c": autofan_vr_target,
         "autofan_chip_temp_c": autofan_chip_target,
         "voltage_enabled": bool(miner.get("guardian_voltage_enabled")),
+        "max_voltage_mv": miner.get("guardian_max_voltage_mv"),
+        "voltage_floor_mv": miner.get("guardian_voltage_floor_mv"),
         "max_power_w": miner.get("guardian_max_power_w"),
         "effective_power_w": float(miner.get("guardian_max_power_w") or g.power_cutoff_w or 40),
         "fan_max_pct": (miner.get("fan_max_override") or 100),
@@ -2039,6 +2043,8 @@ async def api_guardian_config(miner_id: int, payload: GuardianConfigPayload) -> 
         max_vr_temp_c=payload.max_vr_temp_c,
         max_chip_temp_c=payload.max_chip_temp_c,
         voltage_enabled=payload.voltage_enabled,
+        max_voltage_mv=payload.max_voltage_mv,
+        voltage_floor_mv=payload.voltage_floor_mv,
         max_power_w=payload.max_power_w,
         fan_max_override=payload.fan_max_pct,
         clear_vr_temp=bool(payload.clear_vr_temp),

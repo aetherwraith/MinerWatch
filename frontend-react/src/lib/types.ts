@@ -833,6 +833,8 @@ export interface GuardianStatusResponse {
   fan_max_pct: number | null;   // max fan speed pinned during frequency tuning
   miner_max_power_w: number | null; // telemetry-reported max power
   voltage_enabled: boolean;     // per-miner opt-in for the voltage co-tuner (Phase 2)
+  max_voltage_mv?: number | null; // per-miner voltage ceiling
+  voltage_floor_mv?: number | null; // per-miner voltage floor
   supports_voltage: boolean;    // family exposes voltage control
   voltage_master: boolean;      // global master switch for the voltage lever
   current_freq_mhz: number | null;

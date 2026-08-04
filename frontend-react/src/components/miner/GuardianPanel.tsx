@@ -57,6 +57,8 @@ export function GuardianPanel({ data }: Props) {
   const [maxChipTemp, setMaxChipTemp] = useState<number | ''>('');
   const [maxPower, setMaxPower] = useState<number | ''>('');
   const [fanMaxPct, setFanMaxPct] = useState<number | ''>('');
+  const [maxVolt, setMaxVolt] = useState<number | ''>('');
+  const [voltFloor, setVoltFloor] = useState<number | ''>('');
   // At-your-own-risk confirmation, gating the enable toggle.
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Separate (stronger) confirmation for the Phase 2 voltage co-tuner opt-in.
@@ -70,6 +72,8 @@ export function GuardianPanel({ data }: Props) {
     setMaxFreq(s.max_freq_mhz ?? s.current_freq_mhz ?? '');
     setMaxVrTemp(s.max_vr_temp_c ?? '');
     setMaxChipTemp(s.max_chip_temp_c ?? '');
+    setMaxVolt(s.max_voltage_mv ?? s.defaults.v_ceiling_mv ?? '');
+    setVoltFloor(s.voltage_floor_mv ?? s.defaults.v_floor_mv ?? '');
     setMaxPower(s.max_power_w ?? s.effective_power_w ?? s.defaults.power_cutoff_w ?? 40);
     setFanMaxPct(s.fan_max_pct ?? 100);
   }, [
@@ -77,6 +81,10 @@ export function GuardianPanel({ data }: Props) {
     s?.current_freq_mhz,
     s?.max_vr_temp_c,
     s?.max_chip_temp_c,
+    s?.max_voltage_mv,
+    s?.voltage_floor_mv,
+    s?.defaults?.v_ceiling_mv,
+    s?.defaults?.v_floor_mv,
     s?.max_power_w,
     s?.effective_power_w,
     s?.defaults?.power_cutoff_w,
@@ -150,6 +158,8 @@ export function GuardianPanel({ data }: Props) {
       clear_vr_temp?: boolean;
       clear_chip_temp?: boolean;
       voltage_enabled?: boolean;
+      max_voltage_mv?: number;
+      voltage_floor_mv?: number;
       max_power_w?: number;
       fan_max_pct?: number;
     },
@@ -512,10 +522,52 @@ export function GuardianPanel({ data }: Props) {
               />
             </div>
             {s.voltage_enabled && (
-              <p className="text-xs text-muted-foreground">
-                Voltage envelope {d.v_floor_mv}–{d.v_ceiling_mv} mV, ±{d.v_step_mv} mV
-                steps.
-              </p>
+              <div className="space-y-3 pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Voltage envelope {d.v_floor_mv}–{d.v_ceiling_mv} mV, ±{d.v_step_mv} mV steps.
+                </p>
+                <div className="flex gap-4 flex-wrap items-end pt-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="guardian-max-volt" className="text-xs font-medium">Voltage Ceiling (mV)</Label>
+                    <Input
+                      id="guardian-max-volt"
+                      type="number"
+                      min={800}
+                      max={1600}
+                      step={5}
+                      value={maxVolt}
+                      placeholder={`${s.max_voltage_mv ?? d.v_ceiling_mv}`}
+                      onChange={(e) => setMaxVolt(e.target.value === '' ? '' : Number(e.target.value))}
+                      disabled={pending}
+                      className="max-w-[130px] h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="guardian-volt-floor" className="text-xs font-medium">Voltage Floor (mV)</Label>
+                    <Input
+                      id="guardian-volt-floor"
+                      type="number"
+                      min={800}
+                      max={1600}
+                      step={5}
+                      value={voltFloor}
+                      placeholder={`${s.voltage_floor_mv ?? d.v_floor_mv}`}
+                      onChange={(e) => setVoltFloor(e.target.value === '' ? '' : Number(e.target.value))}
+                      disabled={pending}
+                      className="max-w-[130px] h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => run({ max_voltage_mv: typeof maxVolt === 'number' ? maxVolt : undefined, voltage_floor_mv: typeof voltFloor === 'number' ? voltFloor : undefined }, 'Voltage bounds updated')}
+                    className="h-8 text-xs"
+                  >
+                    Save voltage bounds
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         )}

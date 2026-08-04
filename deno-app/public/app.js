@@ -257,6 +257,7 @@ function renderMinersGrid(miners) {
     const ip = item.ip || item.host || '';
     const hostname = item.hostname || item.name || ip;
     const family = item.family || 'miner';
+    const fanVal = item.fan_pct ?? item.fan_speed ?? item.fan ?? item.fan_speed_pct ?? item.live_sample?.fan_pct ?? item.last_metric?.fan_pct;
     return `
       <miner-card
         ip="${ip}"
@@ -266,9 +267,9 @@ function renderMinersGrid(miners) {
         hashrate="${item.hashrate_ths != null ? item.hashrate_ths : ''}"
         power="${item.power_w != null ? item.power_w : ''}"
         efficiency="${item.efficiency_j_th != null ? item.efficiency_j_th : ''}"
-        chiptemp="${item.temp_chip_c != null ? item.temp_chip_c : ''}"
-        vrtemp="${item.temp_vr_c != null ? item.temp_vr_c : ''}"
-        fan="${item.fan_pct != null ? item.fan_pct : ''}"
+        chiptemp="${item.temp_chip_c != null ? item.temp_chip_c : (item.chip_temp_c != null ? item.chip_temp_c : '')}"
+        vrtemp="${item.temp_vr_c != null ? item.temp_vr_c : (item.vr_temp_c != null ? item.vr_temp_c : '')}"
+        fan="${fanVal != null ? fanVal : ''}"
         online="${item.online !== false}"
       ></miner-card>
     `;
@@ -283,6 +284,24 @@ window.openMinerDetail = async function(ip) {
   if (!minerObj) return;
 
   const miner = minerObj.miner || minerObj;
+  
+  // Fetch detailed live endpoint & Guardian status for complete field population
+  const [detailData, guardianData] = await Promise.all([
+    fetch(`/api/miners/${miner.id}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/miners/${miner.id}/guardian/status`).then(r => r.ok ? r.json() : null).catch(() => null)
+  ]);
+
+  const live = detailData?.miner || miner;
+  const sample = detailData?.live_sample || minerObj.live_sample || {};
+  const gStatus = guardianData || {};
+
+  const curFreq = sample.freq_mhz || sample.frequency_mhz || live.freq_mhz || 500;
+  const curVolt = sample.voltage_mv || live.voltage_mv || 1200;
+  const pool1Url = live.pool1_url || live.stratum_url || (live.pools?.[0]?.url) || '';
+  const pool1User = live.pool1_user || live.stratum_user || (live.pools?.[0]?.user) || '';
+  const pool2Url = live.pool2_url || (live.pools?.[1]?.url) || '';
+  const pool2User = live.pool2_user || (live.pools?.[1]?.user) || '';
+
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.id = 'active-modal';
@@ -291,8 +310,8 @@ window.openMinerDetail = async function(ip) {
     <div class="modal-content">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
         <div>
-          <h2 style="font-size: 1.3rem; font-weight: 800;">${miner.hostname || miner.ip}</h2>
-          <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">${miner.ip} (${miner.family})</span>
+          <h2 style="font-size: 1.3rem; font-weight: 800;">${live.hostname || live.name || live.ip}</h2>
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">${live.ip} (${live.family})</span>
         </div>
         <button class="btn-action" onclick="closeModal()">Close</button>
       </div>
@@ -310,21 +329,21 @@ window.openMinerDetail = async function(ip) {
         <div class="form-grid">
           <div class="form-group">
             <label class="form-label">Frequency (MHz)</label>
-            <input type="number" id="input-freq" value="${miner.freq_mhz || 500}" class="form-input">
+            <input type="number" id="input-freq" value="${curFreq}" class="form-input">
           </div>
           <div class="form-group">
             <label class="form-label">Core Voltage (mV)</label>
-            <input type="number" id="input-volt" value="${miner.voltage_mv || 1200}" class="form-input">
+            <input type="number" id="input-volt" value="${curVolt}" class="form-input">
           </div>
           <div class="form-group" style="justify-content: flex-end;">
-            <button class="btn-action btn-primary" onclick="setFreqVolt(${miner.id})">Apply Freq & Voltage</button>
+            <button class="btn-action btn-primary" onclick="setFreqVolt(${live.id})">Apply Freq & Voltage</button>
           </div>
         </div>
 
         <div style="display: flex; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
-          <input type="text" id="input-name" placeholder="Custom Display Name" value="${miner.name || ''}" class="form-input" style="flex: 1;">
-          <button class="btn-action" onclick="saveMinerName(${miner.id})">Save Name</button>
-          <button class="btn-action btn-danger" onclick="restartMiner(${miner.id})">Restart Miner Hardware</button>
+          <input type="text" id="input-name" placeholder="Custom Display Name" value="${live.name || ''}" class="form-input" style="flex: 1;">
+          <button class="btn-action" onclick="saveMinerName(${live.id})">Save Name</button>
+          <button class="btn-action btn-danger" onclick="restartMiner(${live.id})">Restart Miner Hardware</button>
         </div>
       </div>
 
@@ -334,21 +353,21 @@ window.openMinerDetail = async function(ip) {
           <div class="form-group">
             <label class="form-label">Fan Mode</label>
             <select id="select-fan-mode" class="form-select">
-              <option value="firmware" ${miner.fan_mode === 'firmware' ? 'selected' : ''}>Firmware Auto</option>
-              <option value="manual" ${miner.fan_mode === 'manual' ? 'selected' : ''}>Manual Fixed Speed (%)</option>
-              <option value="minerwatch" ${miner.fan_mode === 'minerwatch' ? 'selected' : ''}>MinerWatch Auto-Fan</option>
+              <option value="firmware" ${live.fan_mode === 'firmware' ? 'selected' : ''}>Firmware Auto</option>
+              <option value="manual" ${live.fan_mode === 'manual' ? 'selected' : ''}>Manual Fixed Speed (%)</option>
+              <option value="minerwatch" ${live.fan_mode === 'minerwatch' ? 'selected' : ''}>MinerWatch Auto-Fan</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Manual Speed (%)</label>
-            <input type="number" id="input-fan-speed" value="${miner.fan_speed_pct || 95}" class="form-input">
+            <input type="number" id="input-fan-speed" value="${live.fan_speed_pct || live.pin_fan_pct || 95}" class="form-input">
           </div>
           <div class="form-group">
             <label class="form-label">Target Temp (°C)</label>
-            <input type="number" id="input-auto-target" value="${miner.auto_target_c || 65}" class="form-input">
+            <input type="number" id="input-auto-target" value="${live.auto_target_c || 65}" class="form-input">
           </div>
         </div>
-        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveFanSettings(${miner.id})">Save Fan Settings</button>
+        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveFanSettings(${live.id})">Save Fan Settings</button>
       </div>
 
       <!-- Tab 3: Guardian Governor -->
@@ -357,37 +376,57 @@ window.openMinerDetail = async function(ip) {
           <div class="form-group">
             <label class="form-label">Guardian Opt-In</label>
             <select id="select-guardian-enabled" class="form-select">
-              <option value="1" ${miner.guardian_enabled ? 'selected' : ''}>Enabled (Active Thermal Protection)</option>
-              <option value="0" ${!miner.guardian_enabled ? 'selected' : ''}>Disabled</option>
+              <option value="1" ${gStatus.miner_enabled || live.guardian_enabled ? 'selected' : ''}>Enabled (Active Thermal Protection)</option>
+              <option value="0" ${!gStatus.miner_enabled && !live.guardian_enabled ? 'selected' : ''}>Disabled</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Max Frequency Ceiling (MHz)</label>
-            <input type="number" id="input-g-max-freq" value="${miner.guardian_max_freq_mhz || 600}" class="form-input">
+            <input type="number" id="input-g-max-freq" value="${gStatus.max_freq_mhz || live.guardian_max_freq_mhz || curFreq}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Frequency Floor (MHz)</label>
+            <input type="number" id="input-g-freq-floor" value="${gStatus.freq_floor_mhz || live.guardian_freq_floor_mhz || 400}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Voltage Ceiling (mV)</label>
+            <input type="number" id="input-g-max-volt" value="${gStatus.max_voltage_mv || live.guardian_max_voltage_mv || 1300}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Voltage Floor (mV)</label>
+            <input type="number" id="input-g-volt-floor" value="${gStatus.voltage_floor_mv || live.guardian_voltage_floor_mv || 1150}" class="form-input">
           </div>
           <div class="form-group">
             <label class="form-label">Max Chip Temp Cap (°C)</label>
-            <input type="number" id="input-g-max-temp" value="${miner.guardian_max_chip_temp_c || 68}" class="form-input">
+            <input type="number" id="input-g-max-temp" value="${gStatus.max_chip_temp_c || live.guardian_max_chip_temp_c || 68}" class="form-input">
           </div>
           <div class="form-group">
             <label class="form-label">Max VR Temp Cap (°C)</label>
-            <input type="number" id="input-g-max-vr" value="${miner.guardian_max_vr_temp_c || 82}" class="form-input">
+            <input type="number" id="input-g-max-vr" value="${gStatus.max_vr_temp_c || live.guardian_max_vr_temp_c || 82}" class="form-input">
           </div>
         </div>
-        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveGuardianSettings(${miner.id})">Save Guardian Settings</button>
+        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveGuardianSettings(${live.id})">Save Guardian Settings</button>
       </div>
 
       <!-- Tab 4: Stratum Pools -->
       <div id="tab-pools" style="display: none; flex-direction: column; gap: 1rem;">
         <div class="form-group">
           <label class="form-label">Primary Stratum Pool URL</label>
-          <input type="text" id="input-pool1-url" placeholder="stratum+tcp://solo.ckpool.org:3333" class="form-input">
+          <input type="text" id="input-pool1-url" value="${pool1Url}" placeholder="stratum+tcp://solo.ckpool.org:3333" class="form-input">
         </div>
         <div class="form-group">
           <label class="form-label">Primary Worker / BTC Address</label>
-          <input type="text" id="input-pool1-user" placeholder="bc1q...worker1" class="form-input">
+          <input type="text" id="input-pool1-user" value="${pool1User}" placeholder="bc1q...worker1" class="form-input">
         </div>
-        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="savePoolSettings(${miner.id})">Save Stratum Pool Config</button>
+        <div class="form-group">
+          <label class="form-label">Secondary Stratum Pool URL</label>
+          <input type="text" id="input-pool2-url" value="${pool2Url}" placeholder="stratum+tcp://btc.viabtc.io:3333" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Secondary Worker / BTC Address</label>
+          <input type="text" id="input-pool2-user" value="${pool2User}" placeholder="bc1q...worker2" class="form-input">
+        </div>
+        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="savePoolSettings(${live.id})">Save Stratum Pool Config</button>
       </div>
 
       <!-- Tab 5: Automated Benchmark -->
@@ -428,8 +467,8 @@ window.openMinerDetail = async function(ip) {
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <button class="btn-action btn-primary" onclick="startBenchConfigured(${miner.id})">🚀 Run Efficiency Benchmark</button>
-          <button class="btn-action btn-danger" onclick="stopBench(${miner.id})">Stop Benchmark</button>
+          <button class="btn-action btn-primary" onclick="startBenchConfigured(${live.id})">🚀 Run Efficiency Benchmark</button>
+          <button class="btn-action btn-danger" onclick="stopBench(${live.id})">Stop Benchmark</button>
         </div>
 
         <benchmark-visualizer id="bench-vis"></benchmark-visualizer>
@@ -438,7 +477,7 @@ window.openMinerDetail = async function(ip) {
   `;
 
   document.body.appendChild(modal);
-  pollBenchStatus(miner.id);
+  pollBenchStatus(live.id);
 };
 
 window.closeModal = function() {
@@ -492,19 +531,25 @@ window.saveFanSettings = async function(minerId) {
 };
 
 window.saveGuardianSettings = async function(minerId) {
-  const enabled = parseInt(document.getElementById('select-guardian-enabled').value);
+  const enabled = parseInt(document.getElementById('select-guardian-enabled').value) === 1;
   const maxFreq = parseInt(document.getElementById('input-g-max-freq').value);
-  const maxChip = parseInt(document.getElementById('input-g-max-temp').value);
-  const maxVr = parseInt(document.getElementById('input-g-max-vr').value);
+  const freqFloor = parseInt(document.getElementById('input-g-freq-floor').value);
+  const maxVolt = parseInt(document.getElementById('input-g-max-volt').value);
+  const voltFloor = parseInt(document.getElementById('input-g-volt-floor').value);
+  const maxChip = parseFloat(document.getElementById('input-g-max-temp').value);
+  const maxVr = parseFloat(document.getElementById('input-g-max-vr').value);
 
-  await fetch(`/api/miners/${minerId}`, {
-    method: 'PATCH',
+  await fetch(`/api/miners/${minerId}/guardian/config`, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      guardian_enabled: enabled,
-      guardian_max_freq_mhz: maxFreq,
-      guardian_max_chip_temp_c: maxChip,
-      guardian_max_vr_temp_c: maxVr,
+      enabled,
+      max_freq_mhz: isNaN(maxFreq) ? null : maxFreq,
+      freq_floor_mhz: isNaN(freqFloor) ? null : freqFloor,
+      max_voltage_mv: isNaN(maxVolt) ? null : maxVolt,
+      voltage_floor_mv: isNaN(voltFloor) ? null : voltFloor,
+      max_chip_temp_c: isNaN(maxChip) ? null : maxChip,
+      max_vr_temp_c: isNaN(maxVr) ? null : maxVr,
     }),
   });
   alert('Guardian settings updated!');

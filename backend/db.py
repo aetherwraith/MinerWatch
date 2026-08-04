@@ -570,6 +570,8 @@ def _init_db_sync() -> None:
             "ALTER TABLE miners ADD COLUMN guardian_max_vr_temp_c REAL",
             "ALTER TABLE miners ADD COLUMN guardian_max_chip_temp_c REAL",
             "ALTER TABLE miners ADD COLUMN guardian_voltage_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE miners ADD COLUMN guardian_max_voltage_mv INTEGER",
+            "ALTER TABLE miners ADD COLUMN guardian_voltage_floor_mv INTEGER",
             "ALTER TABLE miners ADD COLUMN guardian_active_profile TEXT",
             # Offline-alert mute (per-miner): suppress disconnect alerts when
             # the miner is powered down on purpose, until it reconnects.
@@ -2336,6 +2338,8 @@ async def update_miner_guardian_config(
     max_vr_temp_c: float | None = None,
     max_chip_temp_c: float | None = None,
     voltage_enabled: bool | None = None,
+    max_voltage_mv: int | None = None,
+    voltage_floor_mv: int | None = None,
     max_power_w: float | None = None,
     fan_max_override: int | None = None,
     clear_vr_temp: bool = False,
@@ -2370,6 +2374,8 @@ async def update_miner_guardian_config(
 
         params.extend([
             voltage_int,
+            max_voltage_mv,
+            voltage_floor_mv,
             max_power_w,
             fan_max_override,
             now_ts(),
@@ -2387,6 +2393,8 @@ async def update_miner_guardian_config(
               guardian_max_vr_temp_c = {vr_expr},
               guardian_max_chip_temp_c = {chip_expr},
               guardian_voltage_enabled = COALESCE(?, guardian_voltage_enabled),
+              guardian_max_voltage_mv = COALESCE(?, guardian_max_voltage_mv),
+              guardian_voltage_floor_mv = COALESCE(?, guardian_voltage_floor_mv),
               guardian_max_power_w = COALESCE(?, guardian_max_power_w),
               fan_max_override = COALESCE(?, fan_max_override),
               updated_at = ?

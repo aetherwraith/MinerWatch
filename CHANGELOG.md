@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.9] — 2026-08-04
+## [1.39.10] — 2026-08-04
+
+### Added
+
+- **Per-Miner Guardian Voltage Bounds (`backend/db.py`, `backend/guardian.py`, `backend/main.py`).** Added per-miner configurable `guardian_max_voltage_mv` (Voltage Ceiling) and `guardian_voltage_floor_mv` (Voltage Floor) controls, allowing independent voltage tuning envelopes per miner.
+- **Dynamic Field Population & Fan Speed Formatting (`deno-app/public/app.js` & `frontend-react`).** Populated Stratum Pool 1 & 2 URLs/usernames, Frequency, Voltage, Autofan, and Guardian bounds from live miner state when opening miner detail modals. Fixed Fan Speed % readout on dashboard cards to reliably extract live telemetry across driver types.
 
 ### Fixed
 
