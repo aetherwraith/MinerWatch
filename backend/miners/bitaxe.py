@@ -111,6 +111,12 @@ class BitaxeDriver(MinerDriver):
         return round(ghs / 1000.0, 4)
 
     def _parse(self, data: dict[str, Any]) -> MinerSample:
+        # Require signature miner keys so non-miner HTTP endpoints (e.g. ambient temp sensors)
+        # that answer HTTP 200 on /api/system/info are rejected instead of misclassified.
+        MINER_KEYS = ("hashRate", "hashrate", "ASICModel", "boardVersion", "stratumURL", "smallCoreCount", "asicCount", "autofanspeed", "chiptemp1", "deviceModel")
+        if not any(k in data for k in MINER_KEYS):
+            return MinerSample(family=self.family, host=self.host, online=False, error="Not a miner payload")
+
         hashrate_ths = self._ths(data.get("hashRate"))
         power_w = _opt_float(data.get("power"))
 

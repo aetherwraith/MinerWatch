@@ -18,6 +18,7 @@ import math
 import time
 
 from . import alerts, ambitemp_poller, coin as coin_mod, coin_difficulty, db
+from .config import get_config
 from .log_streamer import log_streamer
 from .miners import driver_for_record
 from .miners.base import MinerSample

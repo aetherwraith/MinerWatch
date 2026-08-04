@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.14] — 2026-08-04
+## [1.39.15] — 2026-08-04
+
+### Fixed
+
+- **Poller Import Fix & Signature Miner Verification (`backend/poller.py` & `backend/miners/bitaxe.py`).** Fixed missing `get_config` import in `backend/poller.py` which caused background polling tick exceptions. Added signature miner key checks (`hashRate`, `stratumURL`, `ASICModel`, `boardVersion`, `asicCount`) in `BitaxeDriver._parse` so non-miner HTTP endpoints (e.g. ambient temperature sensors answering on `/api/system/info`) are rejected instead of erroneously added as Bitaxe miners. Removed erroneous miner record `192.168.4.31` from remote SQLite database.
 
 ### Added
 
