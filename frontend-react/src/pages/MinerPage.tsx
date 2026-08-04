@@ -16,6 +16,7 @@ import { WorkModeControls } from '@/components/miner/WorkModeControls';
 import { GuardianPanel } from '@/components/miner/GuardianPanel';
 import { WatchdogPanel } from '@/components/miner/WatchdogPanel';
 import { BenchmarkTab } from '@/components/miner/BenchmarkTab';
+import { AmbientSensorCard } from '@/components/miner/AmbientSensorCard';
 import { useMiner } from '@/api/hooks';
 
 /**
@@ -137,6 +138,7 @@ export function MinerPage() {
         <TabsContent value="controls" className="mt-0 space-y-4">
           <WorkModeControls data={data} />
           <FanControls data={data} />
+          <AmbientSensorCard data={data} />
         </TabsContent>
 
         <TabsContent value="advanced" className="mt-0 space-y-4">

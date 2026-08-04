@@ -666,6 +666,13 @@ window.openAmbientModal = async function() {
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 1.5rem; padding-top: 1rem;">
+        <!-- Miner Room Associations -->
+        <div>
+          <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-warning); margin-bottom: 0.5rem;">Miner Room Associations</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">Associate each miner in your fleet with an ambient temperature sensor for room thermal tracking.</p>
+          <div id="ambient-miner-assoc-list" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem;">Loading miner associations...</div>
+        </div>
+
         <!-- Push Sensors -->
         <div>
           <h3 style="font-size: 1rem; font-weight: 700; color: var(--color-primary); margin-bottom: 0.5rem;">Push Temperature Sensors (HTTP POST)</h3>
@@ -703,13 +710,46 @@ window.openAmbientModal = async function() {
 async function refreshAmbiModal() {
   const pushList = document.getElementById('ambient-push-list');
   const pullList = document.getElementById('ambient-pull-list');
+  const assocList = document.getElementById('ambient-miner-assoc-list');
   if (!pushList || !pullList) return;
 
   try {
     const res = await fetch('/api/ambitemp/status');
     const data = await res.json();
+    const minersRes = await fetch('/api/miners');
+    const minersData = await minersRes.json();
+    const miners = minersData.miners || [];
 
     const pushSensors = data.push_sensors || [];
+    const pullSensors = data.pull_sensors || [];
+    const allSensors = [
+      ...pushSensors,
+      ...pullSensors.filter(p => p.online && p.sensor_id).map(p => ({ sensor_id: p.sensor_id, name: p.name || p.host, current_c: p.temp_c }))
+    ];
+
+    if (assocList) {
+      if (miners.length === 0) {
+        assocList.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted); italic;">No miners in fleet.</span>`;
+      } else {
+        assocList.innerHTML = miners.map(m => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <div>
+              <strong style="font-size: 0.9rem;">${m.name || m.host}</strong>
+              <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); margin-left: 0.5rem;">${m.host}</span>
+            </div>
+            <select class="form-input" style="padding: 2px 6px; font-size: 0.8rem; width: auto;" onchange="assignMinerSensor(${m.id}, this.value)">
+              <option value="">No Room Sensor</option>
+              ${allSensors.map(s => `
+                <option value="${s.sensor_id}" ${m.ambient_sensor_id === s.sensor_id ? 'selected' : ''}>
+                  ${s.name || s.sensor_id} (${s.sensor_id}) — ${s.current_c !== null && s.current_c !== undefined ? s.current_c + '°C' : 'Offline'}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+        `).join('');
+      }
+    }
+
     if (pushSensors.length === 0) {
       pushList.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted); italic;">No active push sensors.</span>`;
     } else {
@@ -727,7 +767,6 @@ async function refreshAmbiModal() {
       `).join('');
     }
 
-    const pullSensors = data.pull_sensors || [];
     const configuredHosts = data.configured_hosts || [];
     if (configuredHosts.length === 0) {
       pullList.innerHTML = `<span style="font-size: 0.85rem; color: var(--text-muted); italic;">No pull sensor host IPs configured.</span>`;
@@ -749,6 +788,15 @@ async function refreshAmbiModal() {
     pushList.innerHTML = `Error loading sensors: ${err.message}`;
   }
 }
+
+window.assignMinerSensor = async function(minerId, sensorId) {
+  await fetch(`/api/miners/${minerId}/ambient-sensor`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sensor_id: sensorId || null, name: sensorId || null }),
+  });
+  refreshAmbiModal();
+};
 
 window.addAmbiHost = async function() {
   const input = document.getElementById('input-pull-host');

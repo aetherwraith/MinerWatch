@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.16] — 2026-08-04
+## [1.39.17] — 2026-08-04
+
+### Added
+
+- **Miner Room Ambient Sensor Association GUI (`frontend-react/src/components/settings/AmbientTab.tsx`, `frontend-react/src/components/miner/AmbientSensorCard.tsx`, `deno-app/public/app.js`).** Added full GUI management for associating miners with room ambient temperature sensors:
+  - **Bulk Fleet Room Associations**: Added a dedicated **Miner Room Associations** card on **Settings > Ambient Sensors** listing every miner with an interactive ambient sensor dropdown selector.
+  - **Miner Controls Tab Card**: Added a dedicated **Ambient Sensor (Room Assignment)** card under **Miner Detail > Controls** to associate room sensors directly on miner detail pages.
+  - **Zero-Dependency Deno Modal**: Added a **Miner Room Associations** section to the native Deno Ambient Sensors modal.
 
 ### Fixed
 

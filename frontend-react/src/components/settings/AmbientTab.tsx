@@ -1,13 +1,55 @@
 import { useState } from 'react';
-import { RefreshCw, Plus, Trash2, Search, CheckCircle2, AlertCircle, Wifi } from 'lucide-react';
+import { RefreshCw, Plus, Trash2, Search, CheckCircle2, AlertCircle, Wifi, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useAmbiTempStatus, useSaveAmbiTempHosts, useUpdateAmbiTempHost } from '@/api/hooks';
+import { useAmbiTempStatus, useSaveAmbiTempHosts, useUpdateAmbiTempHost, useMiners, useSetAmbientSensor } from '@/api/hooks';
 import { api } from '@/lib/api';
+
+function MinerAmbientRow({ miner, availableSensors, onMsg }: { miner: any; availableSensors: any[]; onMsg: (msg: string) => void }) {
+  const setSensor = useSetAmbientSensor(miner.id);
+
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    if (!val) {
+      await setSensor.mutateAsync({ sensorId: null, name: null });
+      onMsg(`Unassigned ambient sensor from ${miner.name || miner.host}`);
+    } else {
+      const match = availableSensors.find((s) => s.sensor_id === val);
+      const name = match ? match.name || match.sensor_id : val;
+      await setSensor.mutateAsync({ sensorId: val, name });
+      onMsg(`Assigned ambient sensor ${name} to ${miner.name || miner.host}`);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3">
+      <div>
+        <div className="font-semibold text-sm">{miner.name || miner.host}</div>
+        <div className="text-xs text-muted-foreground font-mono">{miner.host} · {miner.family.toUpperCase()}</div>
+      </div>
+      <div className="flex items-center gap-3">
+        <select
+          className="rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+          value={miner.ambient_sensor_id || ''}
+          onChange={handleChange}
+          disabled={setSensor.isPending}
+        >
+          <option value="">No Room Sensor Assigned</option>
+          {availableSensors.map((s) => (
+            <option key={s.sensor_id} value={s.sensor_id}>
+              {s.name || 'Unnamed Sensor'} ({s.sensor_id}) — {s.current_c !== null && s.current_c !== undefined ? `${s.current_c}°C` : 'Offline'}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
 
 export function AmbientTab() {
   const { data: status } = useAmbiTempStatus();
+  const { data: minersData } = useMiners();
   const saveHosts = useSaveAmbiTempHosts();
   const updateHost = useUpdateAmbiTempHost();
 
@@ -19,6 +61,19 @@ export function AmbientTab() {
   const pushSensors = status?.push_sensors ?? [];
   const pullSensors = status?.pull_sensors ?? [];
   const configuredHosts: string[] = status?.configured_hosts ?? [];
+  const miners = minersData?.miners ?? [];
+
+  // Combine active push and pull sensors for dropdown assignment
+  const allSensors: any[] = [
+    ...pushSensors,
+    ...pullSensors
+      .filter((p: any) => p.online && p.sensor_id)
+      .map((p: any) => ({
+        sensor_id: p.sensor_id,
+        name: p.name || p.host,
+        current_c: p.temp_c,
+      })),
+  ];
 
   async function handleAddHost() {
     if (!newHost.trim()) return;
@@ -73,6 +128,30 @@ export function AmbientTab() {
           {actionMsg}
         </div>
       )}
+
+      {/* Miner Room Associations Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cpu className="h-5 w-5 text-purple-400" />
+            Miner Room Associations
+          </CardTitle>
+          <CardDescription>
+            Associate each miner in your fleet with an ambient temperature sensor for room thermal tracking and history overlays.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {miners.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No miners registered in fleet.</p>
+          ) : (
+            <div className="divide-y divide-border rounded-md border">
+              {miners.map((m: any) => (
+                <MinerAmbientRow key={m.id} miner={m} availableSensors={allSensors} onMsg={setActionMsg} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Push Sensors Card */}
       <Card>
