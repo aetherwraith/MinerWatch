@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<<<<<<< HEAD
 ## [1.39.12] — 2026-08-04
 
 ### Fixed
@@ -478,6 +479,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Immediate fan takeover on enable.** Disabling and re-enabling Guardian immediately triggers fan pinning and evaluation without waiting for periodic interval ticks.
 
 
+=======
+## [1.19.6] — 2026-08-04
+
+- **IMPORTANT: the development of MinerWatch is coming to a stop.** No donations
+  have come in during these months. I'll take some more time to think about the
+  future of MinerWatch based on the donations that come in from here on. If you
+  like it or use it, please give this a thought.
+>>>>>>> origin/main
 
 ## [1.19.5] — 2026-06-29
 
