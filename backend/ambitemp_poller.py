@@ -88,6 +88,14 @@ async def poll_ambitemp_cycle() -> list[dict]:
 
 async def get_ambitemp_status() -> dict:
     """Return complete status of push sensors and configured pull sensors."""
+    hosts_str = await db.get_setting("ambitemp_hosts", "")
+    if not hosts_str:
+        hosts_str = await db.get_setting("altitemp_hosts", "")
+    configured_hosts = [h.strip() for h in hosts_str.split(",") if h.strip()]
+
+    pull_results = await poll_ambitemp_hosts(configured_hosts) if configured_hosts else []
+    pull_sensor_ids = {p.get("sensor_id") for p in pull_results if p.get("sensor_id")}
+
     push_snaps = ambient.snapshot_all()
     push_sensors = [
         {
@@ -101,14 +109,8 @@ async def get_ambitemp_status() -> dict:
             "type": "push",
         }
         for s in push_snaps
+        if s.sensor_id not in pull_sensor_ids
     ]
-
-    hosts_str = await db.get_setting("ambitemp_hosts", "")
-    if not hosts_str:
-        hosts_str = await db.get_setting("altitemp_hosts", "")
-    configured_hosts = [h.strip() for h in hosts_str.split(",") if h.strip()]
-
-    pull_results = await poll_ambitemp_hosts(configured_hosts) if configured_hosts else []
 
     return {
         "push_sensors": push_sensors,

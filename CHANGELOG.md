@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.15] — 2026-08-04
+## [1.39.16] — 2026-08-04
+
+### Fixed
+
+- **Strict Ambient Sensor Categorization (`backend/ambitemp_poller.py`).** Filtered out pull sensors from `push_sensors` list in `get_ambitemp_status()`. Ensures configured HTTP GET pull sensors appear exclusively under Pull Temperature Sensors and do not duplicate in the Push Sensors view.
 
 ### Fixed
 
