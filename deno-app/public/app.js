@@ -7,7 +7,7 @@ class MinerCard extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['ip', 'hostname', 'family', 'hashrate', 'power', 'efficiency', 'chiptemp', 'vrtemp', 'fan', 'online'];
+    return ['ip', 'hostname', 'family', 'hashrate', 'power', 'efficiency', 'chiptemp', 'vrtemp', 'fan', 'online', 'asiccount'];
   }
 
   attributeChangedCallback() {
@@ -37,7 +37,7 @@ class MinerCard extends HTMLElement {
     }
 
     const tempVal = chipTemp ? parseFloat(chipTemp) : 0;
-    const tempColor = tempVal > 70 ? '#f59e0b' : tempVal > 80 ? '#ef4444' : '#f3f4f6';
+    const tempColor = tempVal > 80 ? '#ef4444' : tempVal > 70 ? '#f59e0b' : '#f3f4f6';
 
     this.innerHTML = `
       <div class="miner-card-element">
@@ -77,7 +77,7 @@ class MinerCard extends HTMLElement {
         </div>
 
         <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button class="btn-action btn-primary" style="flex: 1;" onclick="openMinerDetail('${ip}')">Open Tuning & Benchmark</button>
+          <button class="btn-action btn-primary" style="flex: 1;" onclick="openMinerDetail('${ip}')">Manage & Tune Miner</button>
         </div>
       </div>
     `;
@@ -87,51 +87,83 @@ customElements.define('miner-card', MinerCard);
 
 /** Benchmark Visualizer Web Component with Native SVG Chart */
 class BenchmarkVisualizer extends HTMLElement {
-  set data({ samples, running, currentStep, totalSteps }) {
+  set data({ samples, running, currentStep, totalSteps, isMicroPhase, microCurrent, microTotal, activePoint }) {
     this._samples = samples || [];
     this._running = running;
-    this._step = currentStep;
-    this._total = totalSteps;
+    this._step = currentStep || 0;
+    this._total = totalSteps || 0;
+    this._isMicro = isMicroPhase;
+    this._microCurrent = microCurrent || 0;
+    this._microTotal = microTotal || 0;
+    this._activePoint = activePoint;
     this.render();
   }
 
   render() {
     const samples = this._samples || [];
-    const points = samples.filter(s => (s.stable === true || s.stable === 1) && !s.abort_reason && s.efficiency_j_th != null && s.efficiency_j_th > 0);
+    const points = samples
+      .map((s, idx) => ({ s, origStep: idx + 1 }))
+      .filter(({ s }) => (s.stable === true || s.stable === 1) && !s.abort_reason && s.efficiency_j_th != null && s.efficiency_j_th > 0);
 
     let svgPoly = '';
     if (points.length > 1) {
       const width = 600;
-      const height = 150;
-      const maxEff = Math.max(...points.map(p => p.efficiency_j_th)) || 30;
-      const minEff = Math.min(...points.map(p => p.efficiency_j_th)) || 10;
+      const height = 140;
+      const maxEff = Math.max(...points.map(p => p.s.efficiency_j_th)) || 30;
+      const minEff = Math.min(...points.map(p => p.s.efficiency_j_th)) || 10;
       const effSpan = Math.max(1, maxEff - minEff);
 
       const polyPoints = points.map((p, idx) => {
         const x = (idx / (points.length - 1)) * width;
-        const y = height - ((p.efficiency_j_th - minEff) / effSpan) * (height - 20) - 10;
+        const y = height - ((p.s.efficiency_j_th - minEff) / effSpan) * (height - 20) - 10;
         return `${x},${y}`;
       }).join(' ');
 
-      svgPoly = `<polyline fill="none" stroke="#c084fc" stroke-width="3" points="${polyPoints}" />`;
+      const circles = points.map((p, idx) => {
+        const x = (idx / (points.length - 1)) * width;
+        const y = height - ((p.s.efficiency_j_th - minEff) / effSpan) * (height - 20) - 10;
+        return `<circle cx="${x}" cy="${y}" r="4" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5"><title>Step ${p.origStep}: ${p.s.freq_mhz}MHz / ${p.s.voltage_mv}mV - ${p.s.efficiency_j_th.toFixed(1)} J/TH</title></circle>`;
+      }).join('');
+
+      svgPoly = `
+        <polyline fill="none" stroke="#c084fc" stroke-width="3" points="${polyPoints}" />
+        ${circles}
+      `;
     }
+
+    const activeStepText = this._isMicro ? `Micro Step ${this._microCurrent} of ${this._microTotal}` : `Step ${this._step} of ${this._total}`;
 
     this.innerHTML = `
       <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1.25rem;">
         <div style="display:flex; justify-between; align-items: center; margin-bottom: 1rem;">
-          <h4 style="font-size: 1rem; color: var(--color-purple); font-weight: 700;">Efficiency Sweep Graph (J/TH)</h4>
-          <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">
-            ${this._running ? `Running Step ${this._step} / ${this._total}` : 'Completed'}
+          <div>
+            <h4 style="font-size: 1rem; color: var(--color-purple); font-weight: 700;">Efficiency Sweep Matrix Graph (J/TH)</h4>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Strictly plotting stable operating points</span>
+          </div>
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono); background: rgba(255,255,255,0.05); padding: 0.25rem 0.6rem; border-radius: 0.4rem;">
+            ${this._running ? activeStepText : 'Completed'}
           </span>
         </div>
 
-        <svg width="100%" height="150" viewBox="0 0 600 150" preserveAspectRatio="none">
-          <line x1="0" y1="140" x2="600" y2="140" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4" />
-          <line x1="0" y1="75" x2="600" y2="75" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4" />
-          ${svgPoly}
-        </svg>
+        ${points.length > 0 ? `
+          <svg width="100%" height="140" viewBox="0 0 600 140" preserveAspectRatio="none">
+            <line x1="0" y1="130" x2="600" y2="130" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4" />
+            <line x1="0" y1="70" x2="600" y2="70" stroke="rgba(255,255,255,0.1)" stroke-dasharray="4" />
+            ${svgPoly}
+          </svg>
+        ` : `
+          <div style="text-align: center; padding: 2.5rem 1rem; color: var(--text-muted); background: rgba(0,0,0,0.2); border-radius: 0.5rem; border: 1px dashed var(--border-color); font-size: 0.85rem;">
+            ${this._running ? `
+              <div style="font-weight: 700; color: var(--color-primary); margin-bottom: 0.25rem;">Sampling ${activeStepText} in Progress...</div>
+              <div>Telemetry graph will render as soon as a stable operating point settles.</div>
+            ` : `
+              <div style="font-weight: 700; color: var(--color-warning); margin-bottom: 0.25rem;">No Stable Operating Points Plotted</div>
+              <div>All sampled combinations were unstable or exceeded safety error limits.</div>
+            `}
+          </div>
+        `}
 
-        <div style="margin-top: 1.25rem; max-height: 200px; overflow-y: auto;">
+        <div style="margin-top: 1.25rem; max-height: 220px; overflow-y: auto;">
           <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; font-family: var(--font-mono);">
             <thead>
               <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-color);">
@@ -146,11 +178,11 @@ class BenchmarkVisualizer extends HTMLElement {
             <tbody>
               ${samples.map((s, idx) => `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); background: ${s.stable ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)'};">
-                  <td style="padding: 0.5rem;">#${idx + 1}</td>
+                  <td style="padding: 0.5rem;">Step #${idx + 1}</td>
                   <td style="padding: 0.5rem;">${s.freq_mhz}MHz / ${s.voltage_mv}mV</td>
                   <td style="padding: 0.5rem; color: #38bdf8;">${s.hashrate_ths ? s.hashrate_ths.toFixed(2) + ' TH/s' : '--'}</td>
-                  <td style="padding: 0.5rem;">${s.power_w ? s.power_w + ' W' : '--'}</td>
-                  <td style="padding: 0.5rem; color: #10b981;">${s.efficiency_j_th ? s.efficiency_j_th.toFixed(2) + ' J/TH' : '--'}</td>
+                  <td style="padding: 0.5rem;">${s.power_w ? s.power_w.toFixed(1) + ' W' : '--'}</td>
+                  <td style="padding: 0.5rem; color: #10b981;">${s.efficiency_j_th ? s.efficiency_j_th.toFixed(1) + ' J/TH' : '--'}</td>
                   <td style="padding: 0.5rem;">
                     <span style="padding: 0.15rem 0.4rem; border-radius: 4px; background: ${s.stable ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}; color: ${s.stable ? '#10b981' : '#ef4444'}; font-size: 0.7rem;">
                       ${s.stable ? 'Stable' : 'Unstable'}
@@ -169,6 +201,7 @@ customElements.define('benchmark-visualizer', BenchmarkVisualizer);
 
 // Global SSE & State Engine
 let currentMiners = [];
+let currentFilterQuery = '';
 
 const sse = new EventSource('/api/stream');
 sse.onmessage = (evt) => {
@@ -190,14 +223,36 @@ function updateFleetSummary(miners) {
   document.getElementById('summary-eff').textContent = `${fleetEff.toFixed(1)} J/TH`;
 }
 
+window.filterMinersGrid = function() {
+  const query = document.getElementById('search-filter').value.toLowerCase().trim();
+  currentFilterQuery = query;
+  renderMinersGrid(currentMiners);
+};
+
 function renderMinersGrid(miners) {
   const container = document.getElementById('cards-grid');
-  if (!miners || miners.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 3rem; grid-column: 1/-1;">No miners active. Run subnet discovery to auto-detect miners.</div>';
+  const label = document.getElementById('miner-count-label');
+
+  let filtered = miners;
+  if (currentFilterQuery) {
+    filtered = miners.filter(m => {
+      const item = m.miner ? { ...m.miner, ...(m.live_sample || {}) } : m;
+      const ip = (item.ip || item.host || '').toLowerCase();
+      const name = (item.hostname || item.name || '').toLowerCase();
+      return ip.includes(currentFilterQuery) || name.includes(currentFilterQuery);
+    });
+  }
+
+  if (label) {
+    label.textContent = `Showing ${filtered.length} of ${miners.length} miner(s)`;
+  }
+
+  if (!filtered || filtered.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 3rem; grid-column: 1/-1;">No matching miners active. Run subnet discovery to auto-detect miners.</div>';
     return;
   }
 
-  container.innerHTML = miners.map(m => {
+  container.innerHTML = filtered.map(m => {
     const item = m.miner ? { ...m.miner, ...(m.live_sample || {}) } : m;
     const ip = item.ip || item.host || '';
     const hostname = item.hostname || item.name || ip;
@@ -234,7 +289,7 @@ window.openMinerDetail = async function(ip) {
 
   modal.innerHTML = `
     <div class="modal-content">
-      <div style="display: flex; justify-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
         <div>
           <h2 style="font-size: 1.3rem; font-weight: 800;">${miner.hostname || miner.ip}</h2>
           <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">${miner.ip} (${miner.family})</span>
@@ -244,27 +299,139 @@ window.openMinerDetail = async function(ip) {
 
       <div class="tabs-header">
         <button class="tab-btn active" onclick="switchModalTab('controls')">Tuning & Controls</button>
+        <button class="tab-btn" onclick="switchModalTab('autofan')">Autofan</button>
+        <button class="tab-btn" onclick="switchModalTab('guardian')">Guardian Governor</button>
+        <button class="tab-btn" onclick="switchModalTab('pools')">Stratum Pools</button>
         <button class="tab-btn" onclick="switchModalTab('benchmark')">Automated Benchmark</button>
       </div>
 
+      <!-- Tab 1: Tuning & Controls -->
       <div id="tab-controls" style="display: flex; flex-direction: column; gap: 1rem;">
-        <div style="display: flex; gap: 1rem;">
-          <input type="number" id="input-freq" placeholder="Frequency (MHz)" value="500" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: white; padding: 0.5rem; border-radius: 0.5rem; flex: 1;">
-          <input type="number" id="input-volt" placeholder="Voltage (mV)" value="1200" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: white; padding: 0.5rem; border-radius: 0.5rem; flex: 1;">
-          <button class="btn-action btn-primary" onclick="setFreqVolt(${miner.id})">Apply Frequency/Voltage</button>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Frequency (MHz)</label>
+            <input type="number" id="input-freq" value="${miner.freq_mhz || 500}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Core Voltage (mV)</label>
+            <input type="number" id="input-volt" value="${miner.voltage_mv || 1200}" class="form-input">
+          </div>
+          <div class="form-group" style="justify-content: flex-end;">
+            <button class="btn-action btn-primary" onclick="setFreqVolt(${miner.id})">Apply Freq & Voltage</button>
+          </div>
         </div>
 
-        <div style="display: flex; gap: 1rem;">
-          <input type="number" id="input-fan" placeholder="Fan Speed (%)" value="95" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: white; padding: 0.5rem; border-radius: 0.5rem; flex: 1;">
-          <button class="btn-action" onclick="setFan(${miner.id})">Set Fixed Fan</button>
-          <button class="btn-action" onclick="restartMiner(${miner.id})">Restart Miner</button>
+        <div style="display: flex; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <input type="text" id="input-name" placeholder="Custom Display Name" value="${miner.name || ''}" class="form-input" style="flex: 1;">
+          <button class="btn-action" onclick="saveMinerName(${miner.id})">Save Name</button>
+          <button class="btn-action btn-danger" onclick="restartMiner(${miner.id})">Restart Miner Hardware</button>
         </div>
       </div>
 
-      <div id="tab-benchmark" style="display: none; flex-direction: column; gap: 1rem;">
-        <div style="display: flex; gap: 0.5rem;">
-          <button class="btn-action btn-primary" style="flex: 1;" onclick="startBench(${miner.id})">🚀 Run Efficiency Benchmark</button>
+      <!-- Tab 2: Autofan -->
+      <div id="tab-autofan" style="display: none; flex-direction: column; gap: 1rem;">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Fan Mode</label>
+            <select id="select-fan-mode" class="form-select">
+              <option value="firmware" ${miner.fan_mode === 'firmware' ? 'selected' : ''}>Firmware Auto</option>
+              <option value="manual" ${miner.fan_mode === 'manual' ? 'selected' : ''}>Manual Fixed Speed (%)</option>
+              <option value="minerwatch" ${miner.fan_mode === 'minerwatch' ? 'selected' : ''}>MinerWatch Auto-Fan</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Manual Speed (%)</label>
+            <input type="number" id="input-fan-speed" value="${miner.fan_speed_pct || 95}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Target Temp (°C)</label>
+            <input type="number" id="input-auto-target" value="${miner.auto_target_c || 65}" class="form-input">
+          </div>
         </div>
+        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveFanSettings(${miner.id})">Save Fan Settings</button>
+      </div>
+
+      <!-- Tab 3: Guardian Governor -->
+      <div id="tab-guardian" style="display: none; flex-direction: column; gap: 1rem;">
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Guardian Opt-In</label>
+            <select id="select-guardian-enabled" class="form-select">
+              <option value="1" ${miner.guardian_enabled ? 'selected' : ''}>Enabled (Active Thermal Protection)</option>
+              <option value="0" ${!miner.guardian_enabled ? 'selected' : ''}>Disabled</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Frequency Ceiling (MHz)</label>
+            <input type="number" id="input-g-max-freq" value="${miner.guardian_max_freq_mhz || 600}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Chip Temp Cap (°C)</label>
+            <input type="number" id="input-g-max-temp" value="${miner.guardian_max_chip_temp_c || 68}" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max VR Temp Cap (°C)</label>
+            <input type="number" id="input-g-max-vr" value="${miner.guardian_max_vr_temp_c || 82}" class="form-input">
+          </div>
+        </div>
+        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveGuardianSettings(${miner.id})">Save Guardian Settings</button>
+      </div>
+
+      <!-- Tab 4: Stratum Pools -->
+      <div id="tab-pools" style="display: none; flex-direction: column; gap: 1rem;">
+        <div class="form-group">
+          <label class="form-label">Primary Stratum Pool URL</label>
+          <input type="text" id="input-pool1-url" placeholder="stratum+tcp://solo.ckpool.org:3333" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Primary Worker / BTC Address</label>
+          <input type="text" id="input-pool1-user" placeholder="bc1q...worker1" class="form-input">
+        </div>
+        <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="savePoolSettings(${miner.id})">Save Stratum Pool Config</button>
+      </div>
+
+      <!-- Tab 5: Automated Benchmark -->
+      <div id="tab-benchmark" style="display: none; flex-direction: column; gap: 1.25rem;">
+        <div class="form-grid" style="background: rgba(0,0,0,0.25); padding: 1rem; border-radius: 0.75rem; border: 1px solid var(--border-color);">
+          <div class="form-group">
+            <label class="form-label">Min Freq (MHz)</label>
+            <input type="number" id="bench-min-freq" value="500" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Freq (MHz)</label>
+            <input type="number" id="bench-max-freq" value="600" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Freq Step (MHz)</label>
+            <input type="number" id="bench-freq-step" value="25" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Min Voltage (mV)</label>
+            <input type="number" id="bench-min-volt" value="1200" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Voltage (mV)</label>
+            <input type="number" id="bench-max-volt" value="1300" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Volt Step (mV)</label>
+            <input type="number" id="bench-volt-step" value="25" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dwell Time (sec)</label>
+            <input type="number" id="bench-dwell" value="30" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Error Rate %</label>
+            <input type="number" step="0.1" id="bench-max-err" value="1.1" class="form-input">
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <button class="btn-action btn-primary" onclick="startBenchConfigured(${miner.id})">🚀 Run Efficiency Benchmark</button>
+          <button class="btn-action btn-danger" onclick="stopBench(${miner.id})">Stop Benchmark</button>
+        </div>
+
         <benchmark-visualizer id="bench-vis"></benchmark-visualizer>
       </div>
     </div>
@@ -280,8 +447,15 @@ window.closeModal = function() {
 };
 
 window.switchModalTab = function(tab) {
-  document.getElementById('tab-controls').style.display = tab === 'controls' ? 'flex' : 'none';
-  document.getElementById('tab-benchmark').style.display = tab === 'benchmark' ? 'flex' : 'none';
+  const tabs = ['controls', 'autofan', 'guardian', 'pools', 'benchmark'];
+  tabs.forEach(t => {
+    const el = document.getElementById(`tab-${t}`);
+    if (el) el.style.display = t === tab ? 'flex' : 'none';
+  });
+  const btns = document.querySelectorAll('.tab-btn');
+  btns.forEach(b => {
+    b.classList.toggle('active', b.getAttribute('onclick')?.includes(`'${tab}'`));
+  });
 };
 
 window.setFreqVolt = async function(minerId) {
@@ -295,38 +469,96 @@ window.setFreqVolt = async function(minerId) {
   alert('Frequency/Voltage updated!');
 };
 
-window.setFan = async function(minerId) {
-  const fan = parseInt(document.getElementById('input-fan').value);
-  await fetch(`/api/miners/${minerId}/control/fan`, {
+window.saveMinerName = async function(minerId) {
+  const name = document.getElementById('input-name').value;
+  await fetch(`/api/miners/${minerId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  alert('Miner display name saved!');
+};
+
+window.saveFanSettings = async function(minerId) {
+  const mode = document.getElementById('select-fan-mode').value;
+  const speed = parseInt(document.getElementById('input-fan-speed').value);
+  const target = parseInt(document.getElementById('input-auto-target').value);
+  await fetch(`/api/miners/${minerId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fan_mode: mode, fan_speed_pct: speed, auto_target_c: target }),
+  });
+  alert('Fan settings updated!');
+};
+
+window.saveGuardianSettings = async function(minerId) {
+  const enabled = parseInt(document.getElementById('select-guardian-enabled').value);
+  const maxFreq = parseInt(document.getElementById('input-g-max-freq').value);
+  const maxChip = parseInt(document.getElementById('input-g-max-temp').value);
+  const maxVr = parseInt(document.getElementById('input-g-max-vr').value);
+
+  await fetch(`/api/miners/${minerId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      guardian_enabled: enabled,
+      guardian_max_freq_mhz: maxFreq,
+      guardian_max_chip_temp_c: maxChip,
+      guardian_max_vr_temp_c: maxVr,
+    }),
+  });
+  alert('Guardian settings updated!');
+};
+
+window.savePoolSettings = async function(minerId) {
+  const url = document.getElementById('input-pool1-url').value;
+  const user = document.getElementById('input-pool1-user').value;
+  await fetch(`/api/miners/${minerId}/pools`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ speed_pct: fan }),
+    body: JSON.stringify({ pool1_url: url, pool1_user: user }),
   });
-  alert('Fan speed updated!');
+  alert('Stratum pool settings saved!');
 };
 
 window.restartMiner = async function(minerId) {
-  await fetch(`/api/miners/${minerId}/control/restart`, { method: 'POST' });
-  alert('Miner rebooting...');
+  if (confirm('Are you sure you want to reboot this miner?')) {
+    await fetch(`/api/miners/${minerId}/control/restart`, { method: 'POST' });
+    alert('Miner rebooting...');
+  }
 };
 
-window.startBench = async function(minerId) {
+window.startBenchConfigured = async function(minerId) {
+  const minFreq = parseInt(document.getElementById('bench-min-freq').value);
+  const maxFreq = parseInt(document.getElementById('bench-max-freq').value);
+  const stepFreq = parseInt(document.getElementById('bench-freq-step').value);
+  const minVolt = parseInt(document.getElementById('bench-min-volt').value);
+  const maxVolt = parseInt(document.getElementById('bench-max-volt').value);
+  const stepVolt = parseInt(document.getElementById('bench-volt-step').value);
+  const dwell = parseInt(document.getElementById('bench-dwell').value);
+  const maxErr = parseFloat(document.getElementById('bench-max-err').value);
+
   await fetch(`/api/miners/${minerId}/benchmark/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      min_freq_mhz: 500,
-      max_freq_mhz: 550,
-      freq_step_mhz: 25,
-      min_voltage_mv: 1200,
-      max_voltage_mv: 1250,
-      voltage_step_mv: 25,
-      dwell_time_s: 5,
-      max_error_rate_pct: 1.1,
+      min_freq_mhz: minFreq,
+      max_freq_mhz: maxFreq,
+      freq_step_mhz: stepFreq,
+      min_voltage_mv: minVolt,
+      max_voltage_mv: maxVolt,
+      voltage_step_mv: stepVolt,
+      dwell_time_s: dwell,
+      max_error_rate_pct: maxErr,
       enable_microtuning: true,
     }),
   });
   pollBenchStatus(minerId);
+};
+
+window.stopBench = async function(minerId) {
+  await fetch(`/api/miners/${minerId}/benchmark/cancel`, { method: 'POST' });
+  alert('Benchmark canceled.');
 };
 
 async function pollBenchStatus(minerId) {
@@ -339,6 +571,10 @@ async function pollBenchStatus(minerId) {
       running: data.running,
       currentStep: data.latest_run.current_step,
       totalSteps: data.latest_run.total_steps,
+      isMicroPhase: data.latest_run.sweep_phase === 'microtuning',
+      microCurrent: data.latest_run.micro_current_step,
+      microTotal: data.latest_run.micro_total_steps,
+      activePoint: data.live_metrics,
     };
   }
 }

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MinerWatch Deno (Zero-Dependency Engine)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="header-nav">
+    <div class="brand-title">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+      </svg>
+      <span>MinerWatch</span>
+      <span class="badge-tag">DENO NATIVE · ZERO DEPS</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <button class="btn-action btn-primary" onclick="runDiscovery()">Scan Subnet</button>
+    </div>
+  </div>
+
+  <!-- Fleet Summary KPI Row -->
+  <div class="fleet-summary">
+    <div class="summary-card">
+      <span class="summary-label">Active Miners</span>
+      <span class="summary-value" id="summary-miners" style="color: var(--color-primary);">--</span>
+    </div>
+
+    <div class="summary-card">
+      <span class="summary-label">Total Fleet Hashrate</span>
+      <span class="summary-value" id="summary-hashrate" style="color: #38bdf8;">--</span>
+    </div>
+
+    <div class="summary-card">
+      <span class="summary-label">Total Fleet Power</span>
+      <span class="summary-value" id="summary-power">--</span>
+    </div>
+
+    <div class="summary-card">
+      <span class="summary-label">Fleet Efficiency</span>
+      <span class="summary-value" id="summary-eff" style="color: var(--color-success);">--</span>
+    </div>
+  </div>
+
+  <!-- Controls & Search Bar -->
+  <div class="controls-bar">
+    <input type="text" class="search-input" id="search-filter" placeholder="Filter miners by IP or hostname..." oninput="filterMinersGrid()" />
+    <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);" id="miner-count-label">Loading fleet...</span>
+  </div>
+
+  <!-- Miners Card Grid -->
+  <div class="cards-grid" id="cards-grid">
+    <div style="color: var(--text-muted); text-align: center; padding: 3rem; grid-column: 1/-1;">
+      Connecting to local telemetry engine...
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+  <script>
+    async function runDiscovery() {
+      const btn = document.querySelector('button[onclick="runDiscovery()"]');
+      btn.textContent = 'Scanning...';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/discovery/scan', { method: 'POST' });
+        const data = await res.json();
+        alert(`Discovery completed! Found ${data.found ? data.found.length : 0} miner(s).`);
+      } catch (_e) {
+        alert('Discovery scan finished.');
+      } finally {
+        btn.textContent = 'Scan Subnet';
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
