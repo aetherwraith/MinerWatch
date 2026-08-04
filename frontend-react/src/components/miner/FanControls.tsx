@@ -27,10 +27,14 @@ interface Props {
  * backend endpoints exist, but the UI exposes only fan management.
  */
 export function FanControls({ data }: Props) {
-  const { miner, capabilities } = data;
-  const [target, setTarget] = useState<number>(miner.auto_target_c ?? 65);
+  const { miner, capabilities, live_sample } = data;
+  const rawPayload = (live_sample as any)?.raw ?? {};
+  const firmwareTargetTemp = (live_sample as any)?.temp_target ?? rawPayload.tempTarget ?? rawPayload.pidTargetTemp ?? rawPayload.targetTemp;
+
+  const initialTarget = miner.auto_target_c ?? (firmwareTargetTemp != null ? Number(firmwareTargetTemp) : 65);
+  const [target, setTarget] = useState<number>(initialTarget);
   const [minFanPct, setMinFanPct] = useState<number>(miner.fan_min_override ?? 25);
-  const defaultVr = miner.fan_vr_target_c ?? miner.auto_target_c ?? 60;
+  const defaultVr = miner.fan_vr_target_c ?? initialTarget ?? 60;
   const [vrTarget, setVrTarget] = useState<number>(defaultVr);
 
   const [autoFanLinked, setAutoFanLinked] = useState<boolean>(miner.fan_linked === 0 ? false : true);
@@ -61,14 +65,16 @@ export function FanControls({ data }: Props) {
 
   // Keep fields in sync with backend state on first load / external changes
   useEffect(() => {
-    setTarget(miner.auto_target_c ?? 65);
+    const effTarget = miner.auto_target_c ?? (firmwareTargetTemp != null ? Number(firmwareTargetTemp) : 65);
+    setTarget(effTarget);
     setMinFanPct(miner.fan_min_override ?? 25);
-    setVrTarget(miner.fan_vr_target_c ?? miner.auto_target_c ?? 60);
+    setVrTarget(miner.fan_vr_target_c ?? effTarget ?? 60);
     setAutoFanLinked(miner.fan_linked === 0 ? false : true);
     setFan1Source(miner.fan1_source ?? 'asic');
     setFan2Source(miner.fan2_source ?? 'vr');
   }, [
     miner.auto_target_c,
+    firmwareTargetTemp,
     miner.fan_min_override,
     miner.fan_vr_target_c,
     miner.fan_linked,

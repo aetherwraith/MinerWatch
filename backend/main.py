@@ -440,6 +440,7 @@ async def api_list_miners() -> dict:
                 # Firmware standby flag (AxeOS pause / NerdQAxe shutdown), so the
                 # dashboard card can show "standby" instead of "online".
                 "live_mining_paused": sample.mining_paused if sample else None,
+                "live_sample": asdict(sample) if sample else None,
             }
         )
     return {"miners": out}

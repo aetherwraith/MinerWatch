@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.10] — 2026-08-04
+## [1.39.11] — 2026-08-04
+
+### Improved
+
+- **Firmware Target Temp & Stratum Pool Reading (`backend/main.py`, `frontend-react/src/components/miner/FanControls.tsx`, `deno-app/public/app.js`).** Updated autofan target temperature initialization to fallback to live firmware target temperatures (`tempTarget` / `pidTargetTemp` / `targetTemp` in `live_sample.raw`). Included `live_sample` in `/api/miners` payload to surface firmware pool parameters and target temps fleet-wide without requiring separate detail calls.
 
 ### Added
 
