@@ -1477,6 +1477,7 @@ async def api_set_fan(miner_id: int, payload: FanPayload) -> dict:
     ok = await drv.set_fan_speed(payload.percent, percent2=payload.percent2)
     if not ok:
         raise HTTPException(502, "the miner rejected the command")
+    await db.set_fan_config(miner_id, fan_mode="manual")
     return {"ok": True}
 
 

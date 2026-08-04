@@ -293,14 +293,31 @@ window.openMinerDetail = async function(ip) {
 
   const live = detailData?.miner || miner;
   const sample = detailData?.live_sample || minerObj.live_sample || {};
+  const raw = sample.raw || {};
   const gStatus = guardianData || {};
 
   const curFreq = sample.freq_mhz || sample.frequency_mhz || live.freq_mhz || 500;
   const curVolt = sample.voltage_mv || live.voltage_mv || 1200;
-  const pool1Url = live.pool1_url || live.stratum_url || (live.pools?.[0]?.url) || '';
-  const pool1User = live.pool1_user || live.stratum_user || (live.pools?.[0]?.user) || '';
-  const pool2Url = live.pool2_url || (live.pools?.[1]?.url) || '';
-  const pool2User = live.pool2_user || (live.pools?.[1]?.user) || '';
+  const pool1Url = live.pool1_url || live.stratum_url || sample.stratum_url || sample.pool_url || raw.stratumURL || (sample.pools?.[0]?.url) || '';
+  const pool1User = live.pool1_user || live.stratum_user || sample.stratum_user || sample.worker || raw.stratumUser || (sample.pools?.[0]?.user) || '';
+  const pool2Url = live.pool2_url || sample.fallback_stratum_url || sample.pool_url_fallback || raw.fallbackStratumURL || (sample.pools?.[1]?.url) || '';
+  const pool2User = live.pool2_user || sample.fallback_stratum_user || sample.worker_fallback || raw.fallbackStratumUser || (sample.pools?.[1]?.user) || '';
+
+  // Determine actual fan mode from device hardware sample
+  let effFanMode = live.fan_mode;
+  const afs = sample.autofanspeed ?? raw.autofanspeed;
+  if (afs !== undefined && afs !== null) {
+    if (afs === 0 && effFanMode !== 'minerwatch') {
+      effFanMode = 'manual';
+    } else if (afs > 0 && effFanMode !== 'minerwatch') {
+      effFanMode = 'firmware';
+    }
+  }
+  if (!effFanMode) effFanMode = 'firmware';
+
+  // Read actual target temp from firmware or DB
+  const effTargetTemp = sample.temp_target ?? raw.tempTarget ?? raw.pidTargetTemp ?? raw.targetTemp ?? live.auto_target_c ?? gStatus.autofan_chip_temp_c ?? 65;
+  const effFanSpeed = live.fan_speed_pct || live.pin_fan_pct || sample.fan_pct || raw.fanSpeed || 95;
 
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -353,18 +370,18 @@ window.openMinerDetail = async function(ip) {
           <div class="form-group">
             <label class="form-label">Fan Mode</label>
             <select id="select-fan-mode" class="form-select">
-              <option value="firmware" ${live.fan_mode === 'firmware' ? 'selected' : ''}>Firmware Auto</option>
-              <option value="manual" ${live.fan_mode === 'manual' ? 'selected' : ''}>Manual Fixed Speed (%)</option>
-              <option value="minerwatch" ${live.fan_mode === 'minerwatch' ? 'selected' : ''}>MinerWatch Auto-Fan</option>
+              <option value="firmware" ${effFanMode === 'firmware' ? 'selected' : ''}>Firmware Auto</option>
+              <option value="manual" ${effFanMode === 'manual' ? 'selected' : ''}>Manual Fixed Speed (%)</option>
+              <option value="minerwatch" ${effFanMode === 'minerwatch' ? 'selected' : ''}>MinerWatch Auto-Fan</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Manual Speed (%)</label>
-            <input type="number" id="input-fan-speed" value="${live.fan_speed_pct || live.pin_fan_pct || 95}" class="form-input">
+            <input type="number" id="input-fan-speed" value="${effFanSpeed}" class="form-input">
           </div>
           <div class="form-group">
             <label class="form-label">Target Temp (°C)</label>
-            <input type="number" id="input-auto-target" value="${live.auto_target_c || 65}" class="form-input">
+            <input type="number" id="input-auto-target" value="${effTargetTemp}" class="form-input">
           </div>
         </div>
         <button class="btn-action btn-primary" style="align-self: flex-start;" onclick="saveFanSettings(${live.id})">Save Fan Settings</button>
@@ -522,11 +539,20 @@ window.saveFanSettings = async function(minerId) {
   const mode = document.getElementById('select-fan-mode').value;
   const speed = parseInt(document.getElementById('input-fan-speed').value);
   const target = parseInt(document.getElementById('input-auto-target').value);
-  await fetch(`/api/miners/${minerId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fan_mode: mode, fan_speed_pct: speed, auto_target_c: target }),
-  });
+
+  if (mode === 'manual') {
+    await fetch(`/api/miners/${minerId}/control/fan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ speed_pct: isNaN(speed) ? 95 : speed }),
+    });
+  } else {
+    await fetch(`/api/miners/${minerId}/control/fan_config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fan_mode: mode, auto_target_c: isNaN(target) ? 65 : target }),
+    });
+  }
   alert('Fan settings updated!');
 };
 

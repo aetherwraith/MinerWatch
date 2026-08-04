@@ -367,18 +367,21 @@ class AutoFanController:
 
             # 2. Server-side check/PID.
             mode = (miner.get("fan_mode") or "firmware").lower()
-            if mode == "manual":
-                # If firmware is set back to auto on device, respect that and switch DB to firmware mode
-                if sample.autofanspeed is not None and sample.autofanspeed != 0:
+            if sample.autofanspeed is not None and mode != "minerwatch":
+                if sample.autofanspeed == 0 and mode != "manual":
+                    try:
+                        await db.set_fan_config(miner_id, fan_mode="manual")
+                        mode = "manual"
+                        log.info("miner %s: onboard manual fan active (autofanspeed=0); updated fan_mode to 'manual'", miner.get("name"))
+                    except Exception as exc:  # noqa: BLE001
+                        log.warning("miner %s: failed to sync fan_mode to manual: %s", miner_id, exc)
+                elif sample.autofanspeed != 0 and mode != "firmware":
                     try:
                         await db.set_fan_config(miner_id, fan_mode="firmware")
-                        log.info(
-                            "miner %s: onboard firmware auto-fan active (%d); updated MinerWatch fan_mode to 'firmware'",
-                            miner.get("name"), sample.autofanspeed,
-                        )
+                        mode = "firmware"
+                        log.info("miner %s: onboard firmware auto-fan active (%d); updated fan_mode to 'firmware'", miner.get("name"), sample.autofanspeed)
                     except Exception as exc:  # noqa: BLE001
                         log.warning("miner %s: failed to sync fan_mode to firmware: %s", miner_id, exc)
-                continue
             if mode != "minerwatch":
                 continue
             if sample.temp_chip_c is None:

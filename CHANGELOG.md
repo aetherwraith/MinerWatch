@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.11] — 2026-08-04
+## [1.39.12] — 2026-08-04
+
+### Fixed
+
+- **Bidirectional Fan Mode & Target Temperature Sync (`deno-app/drivers.ts`, `deno-app/public/app.js`, `backend/auto_control.py`).** Fixed issue where miners were incorrectly marked as `firmware (auto)` when set to `manual` fan speed on device. `drivers.ts` now extracts live `autofanspeed` (0=manual, >0=firmware auto) and `tempTarget` / `pidTargetTemp` directly from miner telemetry. `auto_control.py` now syncs `fan_mode` bidirectionally when device state changes. `saveFanSettings` in Deno UI now routes manual fan speed changes to `POST /api/miners/{id}/control/fan`.
 
 ### Improved
 
