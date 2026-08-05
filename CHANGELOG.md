@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.18] — 2026-08-05
+## [1.39.19] — 2026-08-05
+
+### Fixed
+
+- **NMAxe Live Share Stream Parser (`backend/log_streamer.py`).** Updated `_NMAXE_SHARE` regex in `LogStreamer` to handle NMAxe firmware v3.1+ timestamped WebSocket log lines (`₿ [hh:mm:ss.mmm] | 1/1 | 4.006K | 885.0 | ...`), and added verdict tracking for accepted/rejected share events (`#5073 share accepted`).
 
 ### Fixed
 

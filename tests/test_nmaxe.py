@@ -285,6 +285,20 @@ def test_nmaxe_share_line_parsed():
     assert stream.submitted_total == 1
 
 
+def test_nmaxe_v31_share_line_with_timestamp_parsed():
+    """NMAxe v3.1.01 includes a timestamp [hh:mm:ss.mmm] and ASIC info before the first pipe."""
+    ls = LogStreamer()
+    stream = MinerStream(miner_id=1, host="10.0.0.9", port=80, family="nmaxe")
+    line = "\x1b[32m₿ [20:26:25.244] | 1/1  |4.006K|885.0 |126.2315T|\x1b[0m\r\n"
+    asyncio.run(ls._handle_nmaxe_line(stream, line))
+    assert len(stream.buffer) == 1
+    ev = stream.buffer[-1]
+    assert round(ev.share_diff) == 4_006
+    assert round(ev.pool_target) == 885
+    assert ev.submitted is True
+    assert stream.submitted_total == 1
+
+
 def test_nmaxe_non_share_line_ignored():
     ls = LogStreamer()
     stream = MinerStream(miner_id=1, host="10.0.0.9", port=80, family="nmaxe")

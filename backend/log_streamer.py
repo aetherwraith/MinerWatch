@@ -165,15 +165,12 @@ _TARGET = re.compile(
     r"\b(?:Set stratum difficulty:|New pool difficulty)\s+([0-9]+(?:\.[0-9]+)?)"
 )
 
-# NMAxe submitted-share line (fw v3.0.21, captured from a real unit):
+# NMAxe submitted-share line (fw v3.0+, captured from real units):
+#   "\x1b[32m₿ [20:26:25.244] | 1/1 |4.006K|885.0 |126.2315T|\x1b[0m"
 #   "\x1b[32m₿ |32.00 |6.588K|2.049K|234.5394M|\x1b[0m"
-# Fields after the ₿ marker are: <misc> | <shareDiff> | <poolDiff> | <netDiff>.
-# We take the share difficulty (field 2) and the pool target (field 3); the
-# leading field and the trailing net-diff are ignored. ANSI codes are stripped
-# by _ANSI before matching. NOTE: derived from a single real sample — revisit
-# if a future firmware reorders the fields.
+# Fields after the ₿ marker and optional timestamp/ASIC field are: <shareDiff> | <poolDiff> | <netDiff>.
 _NMAXE_SHARE = re.compile(
-    rf"₿\s*\|\s*[^|]*\|\s*({_DIFF_TOKEN})\s*\|\s*({_DIFF_TOKEN})\s*\|"
+    rf"₿[^\n|]*\|\s*(?:[^\n|]+\|)?\s*({_DIFF_TOKEN})\s*\|\s*({_DIFF_TOKEN})\s*\|"
 )
 
 # How far back a REST-observed session-best may retroactively upgrade the
@@ -492,17 +489,15 @@ class LogStreamer:
                     stream.current_target = target
 
     async def _handle_nmaxe_line(self, stream: MinerStream, line: str) -> None:
-        """Parse an NMAxe submitted-share line into a :class:`ShareEvent`.
-
-        NMAxe logs only *submitted* shares (the "₿" toast), each carrying
-        the exact share difficulty and the pool target — so, unlike the
-        forge-os synthetic path, we get the real difficulty (just no
-        below-target cloud). This firmware emits no separate accept/reject
-        verdict line, so events stay ungraded (``accepted=None``); that's
-        fine for the live chart and for the Halo's share_seq/last_diff.
-        """
+        """Parse an NMAxe submitted-share line into a :class:`ShareEvent`."""
         clean = _ANSI.sub("", line).strip()
         if "₿" not in clean:
+            return
+        if "share accepted" in clean:
+            self._on_verdict(stream, accepted=True)
+            return
+        if "share rejected" in clean:
+            self._on_verdict(stream, accepted=False)
             return
         m = _NMAXE_SHARE.search(clean)
         if not m:
