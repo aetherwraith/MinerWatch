@@ -31,6 +31,7 @@ from typing import Any
 
 import httpx
 
+from ..client_pool import get_shared_client
 from .base import MinerSample, PoolSnapshot
 from .base import parse_si_difficulty as _parse_si
 from .bitaxe import BitaxeDriver, _opt_float, _opt_int

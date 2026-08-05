@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.39.17] — 2026-08-04
+## [1.39.18] — 2026-08-05
+
+### Fixed
+
+- **NMAxe Driver Import Fix (`backend/miners/nmaxe.py`).** Added missing `from ..client_pool import get_shared_client` import in `backend/miners/nmaxe.py`. Resolves `NameError: name 'get_shared_client' is not defined` when `_identify_nmaxe` probes candidates during network discovery scans.
 
 ### Added
 
